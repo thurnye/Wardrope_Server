@@ -151,14 +151,23 @@ export class WardrobeRepository implements IWardrobeRepository {
       return null;
     }
 
+    const updateFields: Partial<WardrobeItemDocument> = {
+      updatedAt: new Date(),
+    };
+
+    if (input.name !== undefined) updateFields.name = input.name;
+    if (input.category !== undefined) updateFields.category = input.category;
+    if (input.subcategory !== undefined) updateFields.subcategory = input.subcategory;
+    if (input.brand !== undefined) updateFields.brand = input.brand;
+    if (input.colors !== undefined) updateFields.colors = [...input.colors];
+    if (input.materials !== undefined) updateFields.materials = [...input.materials];
+    if (input.pattern !== undefined) updateFields.pattern = input.pattern;
+    if (input.size !== undefined) updateFields.size = input.size;
+    if (input.favorite !== undefined) updateFields.favorite = input.favorite;
+
     const result = await this.collection.updateOne(
       { _id, userId: ownerId },
-      {
-        $set: {
-          ...input,
-          updatedAt: new Date(),
-        },
-      },
+      { $set: updateFields },
     );
 
     if (result.matchedCount !== 1) {
