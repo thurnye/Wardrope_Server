@@ -1,8 +1,8 @@
-import type { MongoDatabaseConnection } from '@/Wardrope.DB/connection/mongo-database.connection';
+import type { MongoDatabaseConnection } from '../../../connection/mongo-database.connection';
 import type {
   DatabaseHealthStatus,
   IHealthRepository,
-} from '@/Wardrope.DB/repositories/RepositoryInterface/Health/health.repository.interface';
+} from '../../RepositoryInterface/Health/health.repository.interface';
 
 export class HealthRepository implements IHealthRepository {
   constructor(private readonly database: MongoDatabaseConnection | null) {}
