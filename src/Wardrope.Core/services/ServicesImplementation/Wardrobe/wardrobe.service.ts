@@ -10,6 +10,7 @@ import type {
   IWardrobeRepository,
   WardrobeRepositoryQuery,
 } from '../../../../Wardrope.DB/repositories/RepositoryInterface/Wardrobe/wardrobe.repository.interface';
+import type { IWardrobeImageRepository } from '../../../../Wardrope.DB/repositories/RepositoryInterface/WardrobeImage/wardrobe-image.repository.interface';
 import type { IApplicationLogger } from '../../ServicesInterface/Logging/application-logger.service.interface';
 import type { IFileStorageService } from '../../ServicesInterface/Storage/file-storage.service.interface';
 import type { IWardrobeService } from '../../ServicesInterface/Wardrobe/wardrobe.service.interface';
@@ -69,11 +70,16 @@ function normalizeUpdate(input: UpdateWardrobeItemDto): UpdateWardrobeItemDto {
   return normalized;
 }
 
+export interface WardrobeImageLifecycleDependencies {
+  repository: IWardrobeImageRepository;
+  fileStorage: IFileStorageService;
+  logger: IApplicationLogger;
+}
+
 export class WardrobeService implements IWardrobeService {
   constructor(
     private readonly wardrobeRepository: IWardrobeRepository,
-    private readonly fileStorage?: IFileStorageService,
-    private readonly logger?: IApplicationLogger,
+    private readonly imageLifecycle?: WardrobeImageLifecycleDependencies,
   ) {}
 
   async create(userId: string, input: CreateWardrobeItemDto): Promise<WardrobeItemDto> {
@@ -118,21 +124,29 @@ export class WardrobeService implements IWardrobeService {
   }
 
   async delete(userId: string, itemId: string): Promise<boolean> {
-    const deleted = await this.wardrobeRepository.delete(userId, itemId);
+    const current = await this.wardrobeRepository.findById(userId, itemId);
 
+    if (!current) {
+      return false;
+    }
+
+    if (!this.imageLifecycle) {
+      if (current.image) {
+        throw new Error('Wardrobe image lifecycle services are required to delete image-backed items.');
+      }
+      return this.wardrobeRepository.delete(userId, itemId);
+    }
+
+    const deleted = await this.imageLifecycle.repository.deleteWithRecord(userId, itemId);
     if (!deleted) {
       return false;
     }
 
     if (deleted.image) {
-      if (!this.fileStorage || !this.logger) {
-        throw new Error('Wardrobe image cleanup services are required to delete image-backed items.');
-      }
-
       try {
-        await this.fileStorage.deletePrivateFile(deleted.image.objectKey);
+        await this.imageLifecycle.fileStorage.deletePrivateFile(deleted.image.objectKey);
       } catch {
-        this.logger.warn('wardrobe_image_cleanup_after_item_delete_failed', {
+        this.imageLifecycle.logger.warn('wardrobe_image_cleanup_after_item_delete_failed', {
           itemId: deleted.id,
         });
       }
