@@ -1,18 +1,8 @@
-export const PRIVATE_STORAGE_FOLDERS = [
-  'clothings',
-  'accessories',
-  'user',
-  'fragrances',
-  'Footware',
-] as const;
-
-export type PrivateStorageFolder = (typeof PRIVATE_STORAGE_FOLDERS)[number];
-
 export interface StorePrivateFileInput {
   body: Uint8Array;
   contentType: string;
   fileExtension: string;
-  folder: PrivateStorageFolder;
+  pathSegments: readonly string[];
 }
 
 export interface StoredPrivateFile {
