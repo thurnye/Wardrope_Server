@@ -5,7 +5,10 @@ import type {
   UpdateFragranceDto,
 } from '../../../Models/Fragrance/fragrance.model';
 import { toFragranceDto } from '../../../mappers/Fragrance/fragrance.mapper';
-import type { IFragranceRepository } from '../../../../Wardrope.DB/repositories/RepositoryInterface/Fragrance/fragrance.repository.interface';
+import type {
+  FragranceRepositoryQuery,
+  IFragranceRepository,
+} from '../../../../Wardrope.DB/repositories/RepositoryInterface/Fragrance/fragrance.repository.interface';
 import type { IApplicationLogger } from '../../ServicesInterface/Logging/application-logger.service.interface';
 import type { IFileStorageService } from '../../ServicesInterface/Storage/file-storage.service.interface';
 import type { IFragranceService } from '../../ServicesInterface/Fragrance/fragrance.service.interface';
@@ -76,10 +79,15 @@ export class FragranceService implements IFragranceService {
   }
 
   async list(userId: string, query: FragranceListQueryDto): Promise<FragranceListDto> {
-    const result = await this.repository.list(userId, {
-      ...query,
-      search: query.search ? normalizeText(query.search) : undefined,
-    });
+    const repositoryQuery: FragranceRepositoryQuery = {
+      page: query.page,
+      pageSize: query.pageSize,
+    };
+    if (query.available !== undefined) repositoryQuery.available = query.available;
+    if (query.concentration !== undefined) repositoryQuery.concentration = query.concentration;
+    if (query.search) repositoryQuery.search = normalizeText(query.search);
+
+    const result = await this.repository.list(userId, repositoryQuery);
     return {
       items: result.items.map(toFragranceDto),
       pagination: {
