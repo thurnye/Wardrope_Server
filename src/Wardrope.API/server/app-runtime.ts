@@ -3,6 +3,7 @@ import { getImageStorageConfig } from '../../config/image-storage.env';
 import { AuthService } from '../../Wardrope.Core/services/ServicesImplementation/Auth/auth.service';
 import { HealthService } from '../../Wardrope.Core/services/ServicesImplementation/Health/health.service';
 import { PhysicalProfileService } from '../../Wardrope.Core/services/ServicesImplementation/PhysicalProfile/physical-profile.service';
+import { PreferencesService } from '../../Wardrope.Core/services/ServicesImplementation/Preferences/preferences.service';
 import { ProductImportService } from '../../Wardrope.Core/services/ServicesImplementation/ProductImport/product-import.service';
 import { WardrobeService } from '../../Wardrope.Core/services/ServicesImplementation/Wardrobe/wardrobe.service';
 import { WardrobeImageService } from '../../Wardrope.Core/services/ServicesImplementation/WardrobeImage/wardrobe-image.service';
@@ -10,6 +11,7 @@ import { MongoDatabaseConnection } from '../../Wardrope.DB/connection/mongo-data
 import { AuthRepository } from '../../Wardrope.DB/repositories/RepositoryImplementation/Auth/auth.repository';
 import { HealthRepository } from '../../Wardrope.DB/repositories/RepositoryImplementation/Health/health.repository';
 import { PhysicalProfileRepository } from '../../Wardrope.DB/repositories/RepositoryImplementation/PhysicalProfile/physical-profile.repository';
+import { PreferencesRepository } from '../../Wardrope.DB/repositories/RepositoryImplementation/Preferences/preferences.repository';
 import { WardrobeRepository } from '../../Wardrope.DB/repositories/RepositoryImplementation/Wardrobe/wardrobe.repository';
 import { SharpImageProcessingService } from '../../Wardrope.Infra/services/ImageProcessing/sharp-image-processing.service';
 import { ConsoleApplicationLogger } from '../../Wardrope.Infra/services/Logging/console-application-logger.service';
@@ -39,10 +41,12 @@ export async function createApplicationRuntime(): Promise<ApplicationRuntime> {
   const authRepository = new AuthRepository(database);
   const wardrobeRepository = new WardrobeRepository(database);
   const physicalProfileRepository = new PhysicalProfileRepository(database);
+  const preferencesRepository = new PreferencesRepository(database);
   await Promise.all([
     authRepository.ensureIndexes(),
     wardrobeRepository.ensureIndexes(),
     physicalProfileRepository.ensureIndexes(),
+    preferencesRepository.ensureIndexes(),
   ]);
 
   const logger = new ConsoleApplicationLogger();
@@ -64,6 +68,7 @@ export async function createApplicationRuntime(): Promise<ApplicationRuntime> {
     logger,
   });
   const physicalProfileService = new PhysicalProfileService(physicalProfileRepository);
+  const preferencesService = new PreferencesService(preferencesRepository);
   const wardrobeImageService = new WardrobeImageService(
     wardrobeRepository,
     wardrobeRepository,
@@ -85,6 +90,7 @@ export async function createApplicationRuntime(): Promise<ApplicationRuntime> {
       wardrobeImageService,
       physicalProfileService,
       productImportService,
+      preferencesService,
     ),
     async shutdown() {
       fileStorage.shutdown();
