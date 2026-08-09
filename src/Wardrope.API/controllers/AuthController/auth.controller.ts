@@ -3,8 +3,10 @@ import type { IAuthService } from '../../../Wardrope.Core/services/ServicesInter
 import { BaseApiController } from '../BaseApiController/base.api-controller';
 import { loginBodySchema, registerBodySchema } from '../../validation/auth.validation';
 import {
-  clearSessionCookie,
+  clearAuthCookies,
+  readCsrfCookie,
   readSessionCookie,
+  setCsrfCookie,
   setSessionCookie,
 } from '../../utils/auth-cookie';
 import { getAuthenticatedContext } from '../../middleware/authentication.middleware';
@@ -70,6 +72,7 @@ export class AuthController extends BaseApiController {
     }
 
     setSessionCookie(res, result.value.sessionToken, result.value.expiresAt);
+    setCsrfCookie(res, result.value.csrfToken, result.value.expiresAt);
 
     return this.okResponse(res, {
       authenticated: true as const,
@@ -81,19 +84,24 @@ export class AuthController extends BaseApiController {
 
   getSession = async (req: Request, res: Response) => {
     const sessionToken = readSessionCookie(req);
-    const session = await this.authService.getSession(sessionToken);
+    const csrfCookie = readCsrfCookie(req);
+    const session = await this.authService.getSession(sessionToken, csrfCookie);
 
-    if (!session.authenticated && sessionToken) {
-      clearSessionCookie(res);
+    if (!session.authenticated) {
+      if (sessionToken || csrfCookie) {
+        clearAuthCookies(res);
+      }
+      return this.okResponse(res, session);
     }
 
+    setCsrfCookie(res, session.csrfToken, new Date(session.expiresAt));
     return this.okResponse(res, session);
   };
 
   logout = async (_req: Request, res: Response) => {
     const context = getAuthenticatedContext(res);
     await this.authService.logout(context.sessionId);
-    clearSessionCookie(res);
+    clearAuthCookies(res);
 
     return this.okResponse(res, { loggedOut: true as const });
   };
