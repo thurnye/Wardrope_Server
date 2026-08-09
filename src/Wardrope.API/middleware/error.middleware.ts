@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { env } from '../../config/env';
 import type { ApiResponse } from '../models/api-response';
 
 type HttpLikeError = Error & {
@@ -30,15 +31,14 @@ export function errorMiddleware(
   const statusCode = candidateStatus >= 400 && candidateStatus < 600 ? candidateStatus : 500;
   const requestId = String(res.locals.requestId || 'unknown');
 
-  console.error(
-    JSON.stringify({
-      level: 'error',
-      requestId,
-      name: error.name,
-      message: error.message,
-      statusCode,
-    }),
-  );
+  const diagnostic = {
+    level: 'error',
+    requestId,
+    name: error.name,
+    statusCode,
+    ...(env.nodeEnv === 'development' ? { message: error.message } : {}),
+  };
+  console.error(JSON.stringify(diagnostic));
 
   const isPayloadTooLarge = statusCode === 413 || error.type === 'entity.too.large';
   const isClientError = statusCode >= 400 && statusCode < 500;
