@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { IAuthService } from '../../Wardrope.Core/services/ServicesInterface/Auth/auth.service.interface';
+import type { IDressMeService } from '../../Wardrope.Core/services/ServicesInterface/DressMe/dress-me.service.interface';
 import type { IFragranceService } from '../../Wardrope.Core/services/ServicesInterface/Fragrance/fragrance.service.interface';
 import type { IFragranceImageService } from '../../Wardrope.Core/services/ServicesInterface/FragranceImage/fragrance-image.service.interface';
 import type { IHealthService } from '../../Wardrope.Core/services/ServicesInterface/Health/health.service.interface';
@@ -86,6 +87,10 @@ const wearHistoryService: IWearHistoryService = {
   delete: async () => false,
 };
 
+const dressMeService: IDressMeService = {
+  recommend: async () => ({ ok: false, reason: 'WARDROBE_EMPTY' }),
+};
+
 const originalNodeEnv = process.env.NODE_ENV;
 afterEach(() => { process.env.NODE_ENV = originalNodeEnv; });
 
@@ -136,6 +141,24 @@ describe('createApiRouter feature composition', () => {
     )).toThrow(/Outfit and Wear History services are required/i);
   });
 
+  it('fails closed outside test when Dress Me is not wired', () => {
+    process.env.NODE_ENV = 'production';
+    expect(() => createApiRouter(
+      healthService,
+      authService,
+      wardrobeService,
+      undefined,
+      physicalProfileService,
+      productImportService,
+      preferencesService,
+      weatherService,
+      fragranceService,
+      fragranceImageService,
+      outfitService,
+      wearHistoryService,
+    )).toThrow(/Dress Me service is required/i);
+  });
+
   it('allows production composition when required features are explicitly supplied', () => {
     process.env.NODE_ENV = 'production';
     expect(() => createApiRouter(
@@ -151,6 +174,7 @@ describe('createApiRouter feature composition', () => {
       fragranceImageService,
       outfitService,
       wearHistoryService,
+      dressMeService,
     )).not.toThrow();
   });
 });
