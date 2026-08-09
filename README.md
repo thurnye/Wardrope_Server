@@ -27,13 +27,23 @@ npm run dev
 
 A local MongoDB connection is required to run the API outside the test environment. The default API root is `http://localhost:4000/api/v1`.
 
-For image storage, configure the existing S3 bucket name with `AWS_S3_BUCKET_NAME`. `AWS_S3_ROOT_PREFIX` defaults to `Wardrope` and must be a single safe S3 prefix segment. New wardrobe-item images are stored under:
+For image storage, configure the existing S3 bucket name with `AWS_S3_BUCKET_NAME`. `AWS_S3_ROOT_PREFIX` defaults to lowercase `wardrope` and must be a single safe S3 prefix segment.
+
+Wardrope follows the Moose upload choreography: the client sends a multipart file to the API, the backend chooses a trusted logical storage folder, the S3 adapter generates a UUID filename and uploads the bytes, and MongoDB stores the resulting private object reference. The browser never chooses the S3 key.
+
+New images use shared folders rather than user/item partitions:
 
 ```text
-Wardrope/clothes/<userId>/<itemId>/<random-uuid>.webp
+<bucket>/wardrope/clothings/<random-uuid>.webp
+<bucket>/wardrope/accessories/<random-uuid>.webp
+<bucket>/wardrope/user/<random-uuid>.<extension>
+<bucket>/wardrope/Frangrances/<random-uuid>.<extension>
+<bucket>/wardrope/Footware/<random-uuid>.webp
 ```
 
-The bucket remains private and server-only. S3 prefixes such as `Wardrope/users/`, `Wardrope/fragrances/`, and `Wardrope/outfits/` can be introduced by the corresponding backend features when they need storage. Existing object keys already saved in MongoDB remain readable and removable exactly as stored, so this layout change does not require a destructive migration.
+Current wardrobe category routing is backend-owned: tops, bottoms, one-piece items and outerwear go to `clothings`; bags, accessories and jewelry go to `accessories`; footwear goes to `Footware`. The `user` folder is reserved for user avatars and `Frangrances` is reserved for fragrance images. The folder names intentionally match the configured product storage contract exactly.
+
+The bucket remains private and server-only. Existing object keys already saved in MongoDB remain readable and removable exactly as stored, so this layout change does not require a destructive migration.
 
 ## Implemented endpoints
 
@@ -112,8 +122,8 @@ Image flow:
 
 1. The authenticated frontend submits a multipart request to the API.
 2. API middleware validates authentication, authorization and the uploaded file.
-3. Core coordinates the use case.
-4. Infrastructure processes and uploads the image to private S3 storage.
+3. Core coordinates the use case and selects the allowed storage folder from trusted domain data.
+4. Infrastructure processes the image, generates the UUID filename and uploads it to private S3 storage.
 5. DB persists the controlled object reference and associated domain data in MongoDB.
 6. API returns a sanitized response.
 
