@@ -113,7 +113,7 @@ describe('DressMeService provider fallback', () => {
         wardrobeItemIds: [TOP_ID, BOTTOM_ID],
         fragranceId: null,
         score: 72,
-        reasons: ['occasion-aligned'] as const,
+        reasons: ['occasion-aligned' as const],
       }]),
     };
     const h = service(primary, fallback);
@@ -139,7 +139,7 @@ describe('DressMeService provider fallback', () => {
         wardrobeItemIds: ['64c000000000000000000099'],
         fragranceId: null,
         score: 99,
-        reasons: ['occasion-aligned'] as const,
+        reasons: ['occasion-aligned' as const],
       }]),
     };
     const fallback: IDressMeRecommendationProvider = {
@@ -148,7 +148,7 @@ describe('DressMeService provider fallback', () => {
         wardrobeItemIds: [TOP_ID, BOTTOM_ID],
         fragranceId: null,
         score: 70,
-        reasons: ['occasion-aligned'] as const,
+        reasons: ['occasion-aligned' as const],
       }]),
     };
     const h = service(primary, fallback);
