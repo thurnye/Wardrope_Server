@@ -9,6 +9,7 @@ import type {
   FragranceRepositoryQuery,
   IFragranceRepository,
 } from '../../../../Wardrope.DB/repositories/RepositoryInterface/Fragrance/fragrance.repository.interface';
+import type { IOutfitRepository } from '../../../../Wardrope.DB/repositories/RepositoryInterface/Outfit/outfit.repository.interface';
 import type { IApplicationLogger } from '../../ServicesInterface/Logging/application-logger.service.interface';
 import type { IFileStorageService } from '../../ServicesInterface/Storage/file-storage.service.interface';
 import type { IFragranceService } from '../../ServicesInterface/Fragrance/fragrance.service.interface';
@@ -72,6 +73,7 @@ export class FragranceService implements IFragranceService {
     private readonly repository: IFragranceRepository,
     private readonly fileStorage: IFileStorageService,
     private readonly logger: IApplicationLogger,
+    private readonly outfitRepository?: IOutfitRepository,
   ) {}
 
   async create(userId: string, input: CreateFragranceDto) {
@@ -112,6 +114,14 @@ export class FragranceService implements IFragranceService {
   async delete(userId: string, fragranceId: string): Promise<boolean> {
     const deleted = await this.repository.deleteWithRecord(userId, fragranceId);
     if (!deleted) return false;
+
+    if (this.outfitRepository) {
+      try {
+        await this.outfitRepository.clearFragranceReferences(userId, fragranceId);
+      } catch {
+        this.logger.warn('outfit_reference_cleanup_after_fragrance_delete_failed', { fragranceId });
+      }
+    }
 
     if (deleted.image) {
       try {
