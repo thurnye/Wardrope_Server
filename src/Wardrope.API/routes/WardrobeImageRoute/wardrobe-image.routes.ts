@@ -21,7 +21,6 @@ const upload = multer({
     fileSize: MAX_UPLOAD_BYTES,
     files: 1,
     fields: 0,
-    parts: 1,
   },
 });
 
