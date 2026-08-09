@@ -33,6 +33,7 @@ export function createOutfitRoutes(
   router.get('/wear-history/:historyId', history.getById);
   router.patch('/wear-history/:historyId', requireCsrf, history.update);
   router.delete('/wear-history/:historyId', requireCsrf, history.delete);
+  router.post('/:outfitId/wear', requireCsrf, history.recordOutfitWear);
   router.get('/:outfitId', outfits.getById);
   router.patch('/:outfitId', requireCsrf, outfits.update);
   router.delete('/:outfitId', requireCsrf, outfits.delete);
