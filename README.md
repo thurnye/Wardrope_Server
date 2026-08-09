@@ -10,6 +10,8 @@ Wardrope Server is the Node.js + Express + TypeScript backend for Wardrope. It u
 - Zod environment/request validation
 - Helmet + explicit CORS + rate limiting
 - Node crypto for scrypt password hashing and secure session tokens
+- AWS S3 for private backend-managed image storage
+- Nodemon + tsx for local development reloads
 - Vitest + Supertest
 
 ## Getting started
@@ -21,7 +23,17 @@ npm install
 npm run dev
 ```
 
+`npm run dev` runs the TypeScript API through Nodemon and automatically restarts when files under `src/` change. Production continues to run the compiled output through `npm start`.
+
 A local MongoDB connection is required to run the API outside the test environment. The default API root is `http://localhost:4000/api/v1`.
+
+For image storage, configure the existing S3 bucket name with `AWS_S3_BUCKET_NAME`. `AWS_S3_ROOT_PREFIX` defaults to `Wardrope` and must be a single safe S3 prefix segment. New wardrobe-item images are stored under:
+
+```text
+Wardrope/clothes/<userId>/<itemId>/<random-uuid>.webp
+```
+
+The bucket remains private and server-only. S3 prefixes such as `Wardrope/users/`, `Wardrope/fragrances/`, and `Wardrope/outfits/` can be introduced by the corresponding backend features when they need storage. Existing object keys already saved in MongoDB remain readable and removable exactly as stored, so this layout change does not require a destructive migration.
 
 ## Implemented endpoints
 
@@ -79,7 +91,7 @@ Persisted wardrobe fields are objective product/ownership facts:
 
 Contextual labels such as `date-night`, `office`, `summer`, `formal`, or similar recommendation judgments are not stored as product facts. Recommendation services infer suitability from the item data plus the user's profile, preferences, occasion, weather, history, and other context.
 
-Images are intentionally not part of this CRUD contract yet. The next server slice adds the secure backend-only image/S3 flow before wardrobe creation is exposed in the web UI, so the user-facing wardrobe workflow is not shipped half-complete.
+Wardrobe images use the secure backend-only image/S3 flow. The browser uploads to and reads through the Wardrope API; it never receives AWS credentials, the S3 bucket name, internal object keys, or a direct S3 upload URL.
 
 ## Quality checks
 
