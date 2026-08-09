@@ -4,6 +4,7 @@ import { AuthService } from '../../Wardrope.Core/services/ServicesImplementation
 import { FragranceService } from '../../Wardrope.Core/services/ServicesImplementation/Fragrance/fragrance.service';
 import { FragranceImageService } from '../../Wardrope.Core/services/ServicesImplementation/FragranceImage/fragrance-image.service';
 import { HealthService } from '../../Wardrope.Core/services/ServicesImplementation/Health/health.service';
+import { OutfitService, WearHistoryService } from '../../Wardrope.Core/services/ServicesImplementation/Outfit/outfit.service';
 import { PhysicalProfileService } from '../../Wardrope.Core/services/ServicesImplementation/PhysicalProfile/physical-profile.service';
 import { PreferencesService } from '../../Wardrope.Core/services/ServicesImplementation/Preferences/preferences.service';
 import { ProductImportService } from '../../Wardrope.Core/services/ServicesImplementation/ProductImport/product-import.service';
@@ -14,6 +15,7 @@ import { MongoDatabaseConnection } from '../../Wardrope.DB/connection/mongo-data
 import { AuthRepository } from '../../Wardrope.DB/repositories/RepositoryImplementation/Auth/auth.repository';
 import { FragranceRepository } from '../../Wardrope.DB/repositories/RepositoryImplementation/Fragrance/fragrance.repository';
 import { HealthRepository } from '../../Wardrope.DB/repositories/RepositoryImplementation/Health/health.repository';
+import { OutfitRepository, WearHistoryRepository } from '../../Wardrope.DB/repositories/RepositoryImplementation/Outfit/outfit.repository';
 import { PhysicalProfileRepository } from '../../Wardrope.DB/repositories/RepositoryImplementation/PhysicalProfile/physical-profile.repository';
 import { PreferencesRepository } from '../../Wardrope.DB/repositories/RepositoryImplementation/Preferences/preferences.repository';
 import { WardrobeRepository } from '../../Wardrope.DB/repositories/RepositoryImplementation/Wardrobe/wardrobe.repository';
@@ -46,12 +48,16 @@ export async function createApplicationRuntime(): Promise<ApplicationRuntime> {
   const physicalProfileRepository = new PhysicalProfileRepository(database);
   const preferencesRepository = new PreferencesRepository(database);
   const fragranceRepository = new FragranceRepository(database);
+  const outfitRepository = new OutfitRepository(database);
+  const wearHistoryRepository = new WearHistoryRepository(database);
   await Promise.all([
     authRepository.ensureIndexes(),
     wardrobeRepository.ensureIndexes(),
     physicalProfileRepository.ensureIndexes(),
     preferencesRepository.ensureIndexes(),
     fragranceRepository.ensureIndexes(),
+    outfitRepository.ensureIndexes(),
+    wearHistoryRepository.ensureIndexes(),
   ]);
 
   const logger = new ConsoleApplicationLogger();
@@ -63,11 +69,23 @@ export async function createApplicationRuntime(): Promise<ApplicationRuntime> {
   const tokenService = new SecurityTokenService();
   const healthService = new HealthService(healthRepository);
   const authService = new AuthService(authRepository, passwordHasher, tokenService, env.authSessionTtlMs);
-  const wardrobeService = new WardrobeService(wardrobeRepository, { repository: wardrobeRepository, fileStorage, logger });
+  const wardrobeService = new WardrobeService(wardrobeRepository, {
+    repository: wardrobeRepository,
+    fileStorage,
+    logger,
+    outfitRepository,
+  });
   const physicalProfileService = new PhysicalProfileService(physicalProfileRepository);
   const preferencesService = new PreferencesService(preferencesRepository);
   const weatherService = new WeatherService(weatherSourceService, logger);
-  const fragranceService = new FragranceService(fragranceRepository, fileStorage, logger);
+  const fragranceService = new FragranceService(fragranceRepository, fileStorage, logger, outfitRepository);
+  const outfitService = new OutfitService(outfitRepository, wardrobeService, fragranceService);
+  const wearHistoryService = new WearHistoryService(
+    wearHistoryRepository,
+    outfitRepository,
+    wardrobeService,
+    fragranceService,
+  );
   const fragranceImageService = new FragranceImageService(fragranceRepository, imageProcessing, fileStorage, logger);
   const wardrobeImageService = new WardrobeImageService(wardrobeRepository, wardrobeRepository, imageProcessing, fileStorage, logger);
   const productImportService = new ProductImportService(wardrobeRepository, wardrobeImageService, productSourceService);
@@ -84,6 +102,8 @@ export async function createApplicationRuntime(): Promise<ApplicationRuntime> {
       weatherService,
       fragranceService,
       fragranceImageService,
+      outfitService,
+      wearHistoryService,
     ),
     async shutdown() {
       fileStorage.shutdown();
