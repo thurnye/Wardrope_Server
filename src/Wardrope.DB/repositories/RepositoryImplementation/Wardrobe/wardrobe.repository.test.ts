@@ -41,7 +41,7 @@ function createHarness() {
 }
 
 describe('WardrobeRepository ownership filters', () => {
-  it('scopes list and count queries to the authenticated owner', async () => {
+  it('scopes list/count queries to the owner and treats search as literal text', async () => {
     const { repository, collection } = createHarness();
 
     await repository.list(USER_ID, {
@@ -61,9 +61,14 @@ describe('WardrobeRepository ownership filters', () => {
     expect(findFilter?.favorite).toBe(true);
 
     const regexes = (findFilter?.$or ?? []).map((condition: Record<string, RegExp>) =>
-      Object.values(condition)[0]?.source,
+      Object.values(condition)[0],
     );
-    expect(regexes).toEqual(['\\[navy\\.\\*', '\\[navy\\.\\*', '\\[navy\\.\\*']);
+    expect(regexes).toHaveLength(3);
+    for (const regex of regexes) {
+      expect(regex).toBeInstanceOf(RegExp);
+      expect(regex.test('prefix [navy.* suffix')).toBe(true);
+      expect(regex.test('navyyyy')).toBe(false);
+    }
   });
 
   it('scopes item lookup to both item id and authenticated owner id', async () => {
