@@ -34,18 +34,16 @@ export class AuthController extends BaseApiController {
       );
     }
 
-    const result = await this.authService.register(parsed.data);
+    await this.authService.register(parsed.data);
 
-    if (!result.ok) {
-      return this.errorResponse(
-        res,
-        409,
-        'ACCOUNT_UNAVAILABLE',
-        'An account could not be created with those details.',
-      );
-    }
-
-    return this.okResponse(res, result.value, 201);
+    return this.okResponse(
+      res,
+      {
+        accepted: true as const,
+        message: 'If these account details are eligible, you can continue by signing in.',
+      },
+      201,
+    );
   };
 
   login = async (req: Request, res: Response) => {
