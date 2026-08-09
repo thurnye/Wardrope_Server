@@ -31,7 +31,7 @@ const wardrobeService = {
   getById: async () => null,
   update: async () => null,
   delete: async () => false,
-} satisfies IWardrobeService;
+} satisfies IWardropeService;
 
 const physicalProfileService: IPhysicalProfileService = {
   get: async () => null,
