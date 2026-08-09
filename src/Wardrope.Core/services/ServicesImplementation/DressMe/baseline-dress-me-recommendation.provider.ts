@@ -277,6 +277,8 @@ function scoreFragrance(
 }
 
 export class BaselineDressMeRecommendationProvider implements IDressMeRecommendationProvider {
+  readonly engine = 'baseline' as const;
+
   async recommend(context: DressMeProviderContext): Promise<DressMeProviderRecommendation[]> {
     const recentItems = recentWearCounts(context);
     const scored = context.wardrobeItems
