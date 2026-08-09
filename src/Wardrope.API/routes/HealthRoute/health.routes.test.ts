@@ -29,8 +29,26 @@ describe('Wardrope health API', () => {
     expect(response.body.meta.requestId).toBeTruthy();
     expect(response.headers['x-request-id']).toBeTruthy();
     expect(response.headers['x-content-type-options']).toBe('nosniff');
+    expect(response.headers['x-powered-by']).toBeUndefined();
     expect(response.headers['access-control-allow-origin']).toBe('http://localhost:5173');
     expect(response.headers['cache-control']).toBe('no-store');
+  });
+
+  it('preserves only safe client request IDs', async () => {
+    const accepted = await request(buildTestApp('connected'))
+      .get('/api/v1/health')
+      .set('X-Request-Id', 'wardrope.test-123')
+      .expect(200);
+
+    expect(accepted.headers['x-request-id']).toBe('wardrope.test-123');
+
+    const rejected = await request(buildTestApp('connected'))
+      .get('/api/v1/health')
+      .set('X-Request-Id', 'unsafe request id')
+      .expect(200);
+
+    expect(rejected.headers['x-request-id']).not.toBe('unsafe request id');
+    expect(rejected.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/i);
   });
 
   it('returns 503 when dependencies are not ready', async () => {
@@ -61,6 +79,19 @@ describe('Wardrope health API', () => {
       .expect(200);
 
     expect(response.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  it('rejects oversized JSON before it reaches a route', async () => {
+    const response = await request(buildTestApp('connected'))
+      .post('/api/v1/does-not-exist')
+      .set('Content-Type', 'application/json')
+      .send({ payload: 'x'.repeat(1_100_000) })
+      .expect(413);
+
+    expect(response.body.success).toBe(false);
+    expect(response.body.error.code).toBe('PAYLOAD_TOO_LARGE');
+    expect(response.body.error.message).toBe('The request payload is too large.');
+    expect(JSON.stringify(response.body)).not.toMatch(/stack|payload:|x{50}/i);
   });
 
   it('returns a sanitized 404 response for unknown endpoints', async () => {
