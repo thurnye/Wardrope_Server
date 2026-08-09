@@ -174,11 +174,21 @@ class FakeWardrobeRepository implements IWardrobeRepository {
 
     const updated: WardrobeItemRecord = {
       ...item,
-      ...input,
-      colors: input.colors ? [...input.colors] : [...item.colors],
-      materials: input.materials ? [...input.materials] : [...item.materials],
+      colors: [...item.colors],
+      materials: [...item.materials],
       updatedAt: new Date(item.updatedAt.getTime() + 1_000),
     };
+
+    if (input.name !== undefined) updated.name = input.name;
+    if (input.category !== undefined) updated.category = input.category;
+    if (input.subcategory !== undefined) updated.subcategory = input.subcategory;
+    if (input.brand !== undefined) updated.brand = input.brand;
+    if (input.colors !== undefined) updated.colors = [...input.colors];
+    if (input.materials !== undefined) updated.materials = [...input.materials];
+    if (input.pattern !== undefined) updated.pattern = input.pattern;
+    if (input.size !== undefined) updated.size = input.size;
+    if (input.favorite !== undefined) updated.favorite = input.favorite;
+
     this.items.set(itemId, updated);
     return { ...updated, colors: [...updated.colors], materials: [...updated.materials] };
   }
