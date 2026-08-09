@@ -5,6 +5,7 @@ import type { IPhysicalProfileService } from '../../Wardrope.Core/services/Servi
 import type { IPreferencesService } from '../../Wardrope.Core/services/ServicesInterface/Preferences/preferences.service.interface';
 import type { IProductImportService } from '../../Wardrope.Core/services/ServicesInterface/ProductImport/product-import.service.interface';
 import type { IWardrobeService } from '../../Wardrope.Core/services/ServicesInterface/Wardrobe/wardrobe.service.interface';
+import type { IWeatherService } from '../../Wardrope.Core/services/ServicesInterface/Weather/weather.service.interface';
 import { createApiRouter } from '.';
 
 const healthService: IHealthService = {
@@ -64,6 +65,10 @@ const preferencesService: IPreferencesService = {
   reset: async () => undefined,
 };
 
+const weatherService: IWeatherService = {
+  getContext: async () => ({ ok: false, reason: 'PROVIDER_UNAVAILABLE' }),
+};
+
 const originalNodeEnv = process.env.NODE_ENV;
 
 afterEach(() => {
@@ -106,6 +111,19 @@ describe('createApiRouter feature composition', () => {
     )).toThrow(/Preferences service is required/i);
   });
 
+  it('fails closed outside test when Weather is not wired', () => {
+    process.env.NODE_ENV = 'production';
+    expect(() => createApiRouter(
+      healthService,
+      authService,
+      wardrobeService,
+      undefined,
+      physicalProfileService,
+      productImportService,
+      preferencesService,
+    )).toThrow(/Weather service is required/i);
+  });
+
   it('allows production composition when required features are explicitly supplied', () => {
     process.env.NODE_ENV = 'production';
     expect(() => createApiRouter(
@@ -116,6 +134,7 @@ describe('createApiRouter feature composition', () => {
       physicalProfileService,
       productImportService,
       preferencesService,
+      weatherService,
     )).not.toThrow();
   });
 });
