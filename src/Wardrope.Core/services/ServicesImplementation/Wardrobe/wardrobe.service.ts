@@ -8,6 +8,7 @@ import type {
 import type {
   IWardrobeRepository,
   WardrobeItemRecord,
+  WardrobeRepositoryQuery,
 } from '../../../../Wardrope.DB/repositories/RepositoryInterface/Wardrobe/wardrobe.repository.interface';
 import type { IWardrobeService } from '../../ServicesInterface/Wardrobe/wardrobe.service.interface';
 
@@ -15,11 +16,7 @@ function normalizeText(value: string): string {
   return value.trim().replace(/\s+/g, ' ');
 }
 
-function normalizeNullableText(value: string | null | undefined): string | null | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
+function normalizeNullableText(value: string | null): string | null {
   return value === null ? null : normalizeText(value);
 }
 
@@ -62,11 +59,11 @@ function normalizeCreate(input: CreateWardrobeItemDto): CreateWardrobeItemDto {
     name: normalizeText(input.name),
     category: input.category,
     subcategory: normalizeText(input.subcategory),
-    brand: normalizeNullableText(input.brand) ?? null,
+    brand: input.brand === undefined ? null : normalizeNullableText(input.brand),
     colors: normalizeList(input.colors),
     materials: normalizeList(input.materials ?? []),
     pattern: input.pattern ?? null,
-    size: normalizeNullableText(input.size) ?? null,
+    size: input.size === undefined ? null : normalizeNullableText(input.size),
     favorite: input.favorite ?? false,
   };
 }
@@ -77,11 +74,11 @@ function normalizeUpdate(input: UpdateWardrobeItemDto): UpdateWardrobeItemDto {
   if (input.name !== undefined) normalized.name = normalizeText(input.name);
   if (input.category !== undefined) normalized.category = input.category;
   if (input.subcategory !== undefined) normalized.subcategory = normalizeText(input.subcategory);
-  if ('brand' in input) normalized.brand = normalizeNullableText(input.brand) ?? null;
+  if (input.brand !== undefined) normalized.brand = normalizeNullableText(input.brand);
   if (input.colors !== undefined) normalized.colors = normalizeList(input.colors);
   if (input.materials !== undefined) normalized.materials = normalizeList(input.materials);
-  if ('pattern' in input) normalized.pattern = input.pattern ?? null;
-  if ('size' in input) normalized.size = normalizeNullableText(input.size) ?? null;
+  if (input.pattern !== undefined) normalized.pattern = input.pattern;
+  if (input.size !== undefined) normalized.size = normalizeNullableText(input.size);
   if (input.favorite !== undefined) normalized.favorite = input.favorite;
 
   return normalized;
@@ -95,10 +92,16 @@ export class WardrobeService implements IWardrobeService {
   }
 
   async list(userId: string, query: WardrobeListQueryDto): Promise<WardrobeListDto> {
-    const result = await this.wardrobeRepository.list(userId, {
-      ...query,
-      search: query.search ? normalizeText(query.search) : undefined,
-    });
+    const repositoryQuery: WardrobeRepositoryQuery = {
+      page: query.page,
+      pageSize: query.pageSize,
+    };
+
+    if (query.category !== undefined) repositoryQuery.category = query.category;
+    if (query.favorite !== undefined) repositoryQuery.favorite = query.favorite;
+    if (query.search !== undefined) repositoryQuery.search = normalizeText(query.search);
+
+    const result = await this.wardrobeRepository.list(userId, repositoryQuery);
 
     return {
       items: result.items.map(toDto),
