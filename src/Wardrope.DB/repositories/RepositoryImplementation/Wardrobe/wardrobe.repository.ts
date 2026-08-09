@@ -5,6 +5,7 @@ import {
 import type { MongoDatabaseConnection } from '../../../connection/mongo-database.connection';
 import {
   WARDROBE_ITEMS_COLLECTION,
+  type WardrobeImageDocument,
   type WardrobeItemDocument,
 } from '../../../models/WardrobeItem/wardrobe-item.model';
 import type {
@@ -16,7 +17,9 @@ import type {
   WardrobeItemRecord,
   WardrobeRepositoryListResult,
   WardrobeRepositoryQuery,
+  WardrobeStoredImageRecord,
 } from '../../RepositoryInterface/Wardrobe/wardrobe.repository.interface';
+import type { IWardrobeImageRepository } from '../../RepositoryInterface/WardrobeImage/wardrobe-image.repository.interface';
 
 function parseObjectId(value: string): ObjectId | null {
   return ObjectId.isValid(value) ? new ObjectId(value) : null;
@@ -24,6 +27,22 @@ function parseObjectId(value: string): ObjectId | null {
 
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function mapImage(document: WardrobeImageDocument | null | undefined): WardrobeStoredImageRecord | null {
+  if (!document) {
+    return null;
+  }
+
+  return {
+    objectKey: document.objectKey,
+    etag: document.etag,
+    contentType: document.contentType,
+    width: document.width,
+    height: document.height,
+    sizeBytes: document.sizeBytes,
+    updatedAt: document.updatedAt,
+  };
 }
 
 function mapRecord(document: WardrobeItemDocument): WardrobeItemRecord {
@@ -39,12 +58,44 @@ function mapRecord(document: WardrobeItemDocument): WardrobeItemRecord {
     pattern: document.pattern,
     size: document.size,
     favorite: document.favorite,
+    image: mapImage(document.image),
     createdAt: document.createdAt,
     updatedAt: document.updatedAt,
   };
 }
 
-export class WardrobeRepository implements IWardrobeRepository {
+function toImageDocument(image: WardrobeStoredImageRecord): WardrobeImageDocument {
+  return {
+    objectKey: image.objectKey,
+    etag: image.etag,
+    contentType: image.contentType,
+    width: image.width,
+    height: image.height,
+    sizeBytes: image.sizeBytes,
+    updatedAt: image.updatedAt,
+  };
+}
+
+function imageCompareFilter(
+  _id: ObjectId,
+  userId: ObjectId,
+  expectedObjectKey: string | null,
+): Filter<WardrobeItemDocument> {
+  const filter: Filter<WardrobeItemDocument> = { _id, userId };
+
+  if (expectedObjectKey === null) {
+    filter.$or = [
+      { image: null },
+      { image: { $exists: false } },
+    ];
+    return filter;
+  }
+
+  Object.assign(filter, { 'image.objectKey': expectedObjectKey });
+  return filter;
+}
+
+export class WardrobeRepository implements IWardrobeRepository, IWardrobeImageRepository {
   constructor(private readonly database: MongoDatabaseConnection) {}
 
   private get collection() {
@@ -73,6 +124,7 @@ export class WardrobeRepository implements IWardrobeRepository {
       pattern: input.pattern ?? null,
       size: input.size ?? null,
       favorite: input.favorite ?? false,
+      image: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -178,6 +230,67 @@ export class WardrobeRepository implements IWardrobeRepository {
     return updated ? mapRecord(updated) : null;
   }
 
+  async replaceImage(
+    userId: string,
+    itemId: string,
+    expectedObjectKey: string | null,
+    image: WardrobeStoredImageRecord,
+  ): Promise<WardrobeItemRecord | null> {
+    const ownerId = parseObjectId(userId);
+    const _id = parseObjectId(itemId);
+
+    if (!ownerId || !_id) {
+      return null;
+    }
+
+    const result = await this.collection.updateOne(
+      imageCompareFilter(_id, ownerId, expectedObjectKey),
+      {
+        $set: {
+          image: toImageDocument(image),
+          updatedAt: new Date(),
+        },
+      },
+    );
+
+    if (result.matchedCount !== 1) {
+      return null;
+    }
+
+    const updated = await this.collection.findOne({ _id, userId: ownerId });
+    return updated ? mapRecord(updated) : null;
+  }
+
+  async clearImage(
+    userId: string,
+    itemId: string,
+    expectedObjectKey: string,
+  ): Promise<WardrobeItemRecord | null> {
+    const ownerId = parseObjectId(userId);
+    const _id = parseObjectId(itemId);
+
+    if (!ownerId || !_id) {
+      return null;
+    }
+
+    const result = await this.collection.updateOne(
+      imageCompareFilter(_id, ownerId, expectedObjectKey),
+      {
+        $set: {
+          image: null,
+          updatedAt: new Date(),
+        },
+      },
+    );
+
+    if (result.matchedCount !== 1) {
+      return null;
+    }
+
+    const updated = await this.collection.findOne({ _id, userId: ownerId });
+    return updated ? mapRecord(updated) : null;
+  }
+
   async delete(userId: string, itemId: string): Promise<boolean> {
     const ownerId = parseObjectId(userId);
     const _id = parseObjectId(itemId);
@@ -188,6 +301,18 @@ export class WardrobeRepository implements IWardrobeRepository {
 
     const result = await this.collection.deleteOne({ _id, userId: ownerId });
     return result.deletedCount === 1;
+  }
+
+  async deleteWithRecord(userId: string, itemId: string): Promise<WardrobeItemRecord | null> {
+    const ownerId = parseObjectId(userId);
+    const _id = parseObjectId(itemId);
+
+    if (!ownerId || !_id) {
+      return null;
+    }
+
+    const deleted = await this.collection.findOneAndDelete({ _id, userId: ownerId });
+    return deleted ? mapRecord(deleted) : null;
   }
 
   async ensureIndexes(): Promise<void> {

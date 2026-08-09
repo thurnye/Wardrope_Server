@@ -6,6 +6,16 @@ import type {
 
 export const WARDROBE_ITEMS_COLLECTION = 'wardrobeItems';
 
+export interface WardrobeImageDocument {
+  objectKey: string;
+  etag: string | null;
+  contentType: 'image/webp';
+  width: number;
+  height: number;
+  sizeBytes: number;
+  updatedAt: Date;
+}
+
 export interface WardrobeItemDocument {
   _id: ObjectId;
   userId: ObjectId;
@@ -18,6 +28,7 @@ export interface WardrobeItemDocument {
   pattern: WardrobePattern | null;
   size: string | null;
   favorite: boolean;
+  image?: WardrobeImageDocument | null;
   createdAt: Date;
   updatedAt: Date;
 }
