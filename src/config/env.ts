@@ -33,15 +33,13 @@ export const env = Object.freeze({
 });
 
 export function assertRuntimeConfiguration(): void {
-  if (env.nodeEnv !== 'production') {
-    return;
+  if (env.nodeEnv !== 'test' && !env.mongoUri) {
+    throw new Error('MONGODB_URI is required when running the Wardrope API.');
   }
 
-  if (!env.mongoUri) {
-    throw new Error('MONGODB_URI is required in production.');
-  }
-
-  if (env.corsOrigins.length === 0 || env.corsOrigins.some((origin) => origin.includes('localhost'))) {
-    throw new Error('CORS_ORIGINS must contain explicit production origins in production.');
+  if (env.nodeEnv === 'production') {
+    if (env.corsOrigins.length === 0 || env.corsOrigins.some((origin) => origin.includes('localhost'))) {
+      throw new Error('CORS_ORIGINS must contain explicit production origins in production.');
+    }
   }
 }
