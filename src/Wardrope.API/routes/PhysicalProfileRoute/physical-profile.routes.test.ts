@@ -120,7 +120,7 @@ function asUser<T extends HeaderSettable<T>>(
   return req;
 }
 
-async function replaceProfile(
+function replaceProfile(
   app: ReturnType<typeof buildApp>,
   input: ReplacePhysicalProfileDto,
   sessionToken = SESSION_A,
