@@ -5,6 +5,7 @@ import express from 'express';
 import { rateLimit } from 'express-rate-limit';
 import helmet from 'helmet';
 import { env } from '../../config/env';
+import { requireTrustedBrowserOrigin } from './origin.middleware';
 
 const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/;
 
@@ -50,6 +51,8 @@ export function configureSecurityMiddleware(app: Express): void {
       maxAge: 600,
     }),
   );
+
+  app.use(requireTrustedBrowserOrigin);
 
   app.use(
     rateLimit({

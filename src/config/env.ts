@@ -8,6 +8,7 @@ const envSchema = z.object({
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
   MONGODB_URI: z.string().min(1).optional(),
   MONGODB_DB_NAME: z.string().min(1).default('wardrope'),
+  AUTH_SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(168).default(24),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -30,6 +31,7 @@ export const env = Object.freeze({
   trustProxyHops: parsed.data.TRUST_PROXY_HOPS,
   mongoUri: parsed.data.MONGODB_URI,
   mongoDbName: parsed.data.MONGODB_DB_NAME,
+  authSessionTtlMs: parsed.data.AUTH_SESSION_TTL_HOURS * 60 * 60 * 1_000,
 });
 
 export function assertRuntimeConfiguration(): void {
