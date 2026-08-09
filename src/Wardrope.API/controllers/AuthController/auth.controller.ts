@@ -94,7 +94,10 @@ export class AuthController extends BaseApiController {
       return this.okResponse(res, session);
     }
 
-    setCsrfCookie(res, session.csrfToken, new Date(session.expiresAt));
+    if (csrfCookie !== session.csrfToken) {
+      setCsrfCookie(res, session.csrfToken, new Date(session.expiresAt));
+    }
+
     return this.okResponse(res, session);
   };
 
