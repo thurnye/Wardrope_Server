@@ -44,32 +44,32 @@ export interface CreateWardrobeItemDto {
   name: string;
   category: WardrobeCategory;
   subcategory: string;
-  brand?: string | null;
+  brand?: string | null | undefined;
   colors: string[];
-  materials?: string[];
-  pattern?: WardrobePattern | null;
-  size?: string | null;
-  favorite?: boolean;
+  materials?: string[] | undefined;
+  pattern?: WardrobePattern | null | undefined;
+  size?: string | null | undefined;
+  favorite?: boolean | undefined;
 }
 
 export interface UpdateWardrobeItemDto {
-  name?: string;
-  category?: WardrobeCategory;
-  subcategory?: string;
-  brand?: string | null;
-  colors?: string[];
-  materials?: string[];
-  pattern?: WardrobePattern | null;
-  size?: string | null;
-  favorite?: boolean;
+  name?: string | undefined;
+  category?: WardrobeCategory | undefined;
+  subcategory?: string | undefined;
+  brand?: string | null | undefined;
+  colors?: string[] | undefined;
+  materials?: string[] | undefined;
+  pattern?: WardrobePattern | null | undefined;
+  size?: string | null | undefined;
+  favorite?: boolean | undefined;
 }
 
 export interface WardrobeListQueryDto {
   page: number;
   pageSize: number;
-  category?: WardrobeCategory;
-  favorite?: boolean;
-  search?: string;
+  category?: WardrobeCategory | undefined;
+  favorite?: boolean | undefined;
+  search?: string | undefined;
 }
 
 export interface WardrobeListDto {
