@@ -15,8 +15,9 @@ import {
 const MAX_HTML_BYTES = 2 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_REDIRECTS = 3;
+const MAX_ADDRESS_ATTEMPTS = 4;
 const REQUEST_TIMEOUT_MS = 8_000;
-const USER_AGENT = 'WardropeProductImporter/1.0';
+const USER_AGENT = 'WardropeProductImporter/1.1';
 
 interface BoundedResponse {
   finalUrl: URL;
@@ -32,6 +33,13 @@ interface ProductMetadata {
   categoryHint: string | null;
   imageUrl: string | null;
 }
+
+interface PublicAddress {
+  address: string;
+  family: 4 | 6;
+}
+
+type TransportFailureKind = 'TIMEOUT' | 'TLS' | 'NETWORK';
 
 function normalizedHostname(url: URL): string {
   return url.hostname
@@ -122,25 +130,89 @@ function normalizeAndValidateUrl(raw: string): URL {
   return url;
 }
 
-async function resolvePinnedPublicAddress(url: URL): Promise<{ address: string; family: 4 | 6 }> {
-  const hostname = normalizedHostname(url);
-  let addresses;
-  try {
-    addresses = await lookup(hostname, { all: true, order: 'verbatim' });
-  } catch {
+function safeErrorCode(error: unknown): string | null {
+  if (!error || typeof error !== 'object' || !('code' in error)) return null;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' && /^[A-Z0-9_]+$/.test(code) ? code : null;
+}
+
+function classifyTransportFailure(error: unknown): { kind: TransportFailureKind; code: string | null } {
+  const code = safeErrorCode(error);
+  if (code === 'ETIMEDOUT' || code === 'ESOCKETTIMEDOUT') return { kind: 'TIMEOUT', code };
+  if (code && (
+    code.startsWith('ERR_TLS_')
+    || code.startsWith('CERT_')
+    || code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE'
+    || code === 'DEPTH_ZERO_SELF_SIGNED_CERT'
+  )) {
+    return { kind: 'TLS', code };
+  }
+  return { kind: 'NETWORK', code };
+}
+
+function logSourceFailure(
+  kind: 'DNS' | 'TIMEOUT' | 'TLS' | 'NETWORK' | 'REMOTE_BLOCKED' | 'REMOTE_HTTP_ERROR' | 'REDIRECT_LIMIT',
+  url: URL,
+  details: { statusCode?: number; family?: 4 | 6; attempt?: number; code?: string | null } = {},
+): void {
+  const diagnostic = {
+    event: 'product_source_request_failed',
+    kind,
+    hostname: normalizedHostname(url),
+    ...(details.statusCode !== undefined ? { statusCode: details.statusCode } : {}),
+    ...(details.family !== undefined ? { addressFamily: details.family } : {}),
+    ...(details.attempt !== undefined ? { attempt: details.attempt } : {}),
+    ...(details.code ? { code: details.code } : {}),
+  };
+  console.warn(JSON.stringify(diagnostic));
+}
+
+function validateAndOrderPublicAddresses(
+  addresses: ReadonlyArray<{ address: string; family: number }>,
+): PublicAddress[] {
+  if (addresses.length === 0) {
     throw new ProductSourceError('SOURCE_UNAVAILABLE', 'Product source host could not be resolved.');
   }
-
-  if (addresses.length === 0 || addresses.some(({ address }) => !isPublicIp(address))) {
+  if (addresses.some(({ address }) => !isPublicIp(address))) {
     throw new ProductSourceError('URL_NOT_ALLOWED', 'Product source host is not publicly routable.');
   }
 
-  const selected = addresses[0];
-  if (!selected || (selected.family !== 4 && selected.family !== 6)) {
-    throw new ProductSourceError('SOURCE_UNAVAILABLE', 'Product source host could not be resolved.');
+  const unique = new Map<string, PublicAddress>();
+  for (const entry of addresses) {
+    if (entry.family !== 4 && entry.family !== 6) continue;
+    unique.set(`${entry.family}:${entry.address}`, {
+      address: entry.address,
+      family: entry.family,
+    });
   }
 
-  return { address: selected.address, family: selected.family };
+  const ordered = [...unique.values()].sort((left, right) => left.family - right.family);
+  if (ordered.length === 0) {
+    throw new ProductSourceError('SOURCE_UNAVAILABLE', 'Product source host could not be resolved.');
+  }
+  return ordered.slice(0, MAX_ADDRESS_ATTEMPTS);
+}
+
+export function validateAndOrderPublicAddressesForTest(
+  addresses: ReadonlyArray<{ address: string; family: number }>,
+): PublicAddress[] {
+  return validateAndOrderPublicAddresses(addresses);
+}
+
+export function classifyTransportFailureForTest(error: unknown): { kind: TransportFailureKind; code: string | null } {
+  return classifyTransportFailure(error);
+}
+
+async function resolvePinnedPublicAddresses(url: URL): Promise<PublicAddress[]> {
+  const hostname = normalizedHostname(url);
+  try {
+    const addresses = await lookup(hostname, { all: true, order: 'verbatim' });
+    return validateAndOrderPublicAddresses(addresses);
+  } catch (error) {
+    if (error instanceof ProductSourceError) throw error;
+    logSourceFailure('DNS', url, { code: safeErrorCode(error) });
+    throw new ProductSourceError('SOURCE_UNAVAILABLE', 'Product source host could not be resolved.');
+  }
 }
 
 function responseContentType(header: string | string[] | undefined): string {
@@ -161,7 +233,7 @@ function readBoundedBody(response: IncomingMessage, maxBytes: number): Promise<B
     let total = 0;
     let settled = false;
 
-    const fail = (error: ProductSourceError) => {
+    const fail = (error: Error) => {
       if (settled) return;
       settled = true;
       response.destroy();
@@ -183,20 +255,27 @@ function readBoundedBody(response: IncomingMessage, maxBytes: number): Promise<B
       settled = true;
       resolve(Buffer.concat(chunks, total));
     });
-    response.on('error', () => {
-      fail(new ProductSourceError('SOURCE_UNAVAILABLE', 'Remote response failed.'));
+    response.on('error', (error) => {
+      fail(error instanceof Error ? error : new Error('Remote response failed.'));
     });
   });
 }
 
-async function fetchPinned(
-  rawUrl: string | URL,
-  maxBytes: number,
-  redirectsRemaining = MAX_REDIRECTS,
-): Promise<BoundedResponse> {
-  const url = normalizeAndValidateUrl(String(rawUrl));
-  const pinned = await resolvePinnedPublicAddress(url);
+function createTimeoutError(): NodeJS.ErrnoException {
+  const error = new Error('Product source request timed out.') as NodeJS.ErrnoException;
+  error.code = 'ETIMEDOUT';
+  return error;
+}
 
+function requestPinnedAddress(
+  url: URL,
+  pinned: PublicAddress,
+  maxBytes: number,
+  redirectsRemaining: number,
+  deadlineAt: number,
+  attempt: number,
+): Promise<BoundedResponse> {
+  const remainingMs = Math.max(1, deadlineAt - Date.now());
   const options: RequestOptions = {
     protocol: 'https:',
     hostname: pinned.address,
@@ -209,6 +288,7 @@ async function fetchPinned(
       Host: url.host,
       Accept: 'text/html,application/xhtml+xml,image/avif,image/webp,image/png,image/jpeg;q=0.9,*/*;q=0.1',
       'Accept-Encoding': 'identity',
+      'Accept-Language': 'en-CA,en;q=0.9',
       'User-Agent': USER_AGENT,
     },
   };
@@ -221,12 +301,13 @@ async function fetchPinned(
       if ([301, 302, 303, 307, 308].includes(statusCode) && location) {
         response.resume();
         if (redirectsRemaining <= 0) {
+          logSourceFailure('REDIRECT_LIMIT', url, { family: pinned.family, attempt });
           reject(new ProductSourceError('SOURCE_UNAVAILABLE', 'Product source redirected too many times.'));
           return;
         }
 
         try {
-          resolve(await fetchPinned(new URL(location, url), maxBytes, redirectsRemaining - 1));
+          resolve(await fetchPinned(new URL(location, url), maxBytes, redirectsRemaining - 1, deadlineAt));
         } catch (error) {
           reject(error);
         }
@@ -235,7 +316,14 @@ async function fetchPinned(
 
       if (statusCode < 200 || statusCode >= 300) {
         response.resume();
-        reject(new ProductSourceError('SOURCE_UNAVAILABLE', 'Product source returned an unsuccessful response.'));
+        const kind = statusCode === 403 || statusCode === 429 ? 'REMOTE_BLOCKED' : 'REMOTE_HTTP_ERROR';
+        logSourceFailure(kind, url, { statusCode, family: pinned.family, attempt });
+        reject(new ProductSourceError(
+          'SOURCE_UNAVAILABLE',
+          kind === 'REMOTE_BLOCKED'
+            ? 'Product source rejected the request.'
+            : 'Product source returned an unsuccessful response.',
+        ));
         return;
       }
 
@@ -251,16 +339,59 @@ async function fetchPinned(
       }
     });
 
-    request.setTimeout(REQUEST_TIMEOUT_MS, () => {
-      request.destroy(new ProductSourceError('SOURCE_UNAVAILABLE', 'Product source request timed out.'));
+    request.setTimeout(remainingMs, () => {
+      request.destroy(createTimeoutError());
     });
-    request.on('error', (error) => {
-      reject(error instanceof ProductSourceError
-        ? error
-        : new ProductSourceError('SOURCE_UNAVAILABLE', 'Product source request failed.'));
-    });
+    request.on('error', reject);
     request.end();
   });
+}
+
+async function fetchPinned(
+  rawUrl: string | URL,
+  maxBytes: number,
+  redirectsRemaining = MAX_REDIRECTS,
+  deadlineAt = Date.now() + REQUEST_TIMEOUT_MS,
+): Promise<BoundedResponse> {
+  const url = normalizeAndValidateUrl(String(rawUrl));
+  const addresses = await resolvePinnedPublicAddresses(url);
+  let lastTransportError: unknown = null;
+
+  for (let index = 0; index < addresses.length; index += 1) {
+    if (Date.now() >= deadlineAt) break;
+    const pinned = addresses[index];
+    if (!pinned) continue;
+
+    try {
+      return await requestPinnedAddress(
+        url,
+        pinned,
+        maxBytes,
+        redirectsRemaining,
+        deadlineAt,
+        index + 1,
+      );
+    } catch (error) {
+      if (error instanceof ProductSourceError) throw error;
+      lastTransportError = error;
+      const failure = classifyTransportFailure(error);
+      logSourceFailure(failure.kind, url, {
+        family: pinned.family,
+        attempt: index + 1,
+        code: failure.code,
+      });
+    }
+  }
+
+  const failure = classifyTransportFailure(lastTransportError);
+  throw new ProductSourceError(
+    'SOURCE_UNAVAILABLE',
+    failure.kind === 'TIMEOUT'
+      ? 'Product source request timed out.'
+      : failure.kind === 'TLS'
+        ? 'Product source TLS connection failed.'
+        : 'Product source request failed.',
+  );
 }
 
 function decodeHtml(value: string): string {
