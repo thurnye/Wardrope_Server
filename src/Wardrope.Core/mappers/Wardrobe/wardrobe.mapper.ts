@@ -13,7 +13,7 @@ export function toWardrobeItemDto(record: WardrobeItemRecord): WardrobeItemDto {
     pattern: record.pattern,
     size: record.size,
     favorite: record.favorite,
-    sourceUrl: record.sourceUrl,
+    sourceUrl: record.sourceUrl ?? null,
     image: record.image
       ? {
           contentType: record.image.contentType,
