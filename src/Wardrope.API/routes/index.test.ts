@@ -3,21 +3,16 @@ import type { IAuthService } from '../../Wardrope.Core/services/ServicesInterfac
 import type { IFragranceService } from '../../Wardrope.Core/services/ServicesInterface/Fragrance/fragrance.service.interface';
 import type { IFragranceImageService } from '../../Wardrope.Core/services/ServicesInterface/FragranceImage/fragrance-image.service.interface';
 import type { IHealthService } from '../../Wardrope.Core/services/ServicesInterface/Health/health.service.interface';
+import type { IOutfitService, IWearHistoryService } from '../../Wardrope.Core/services/ServicesInterface/Outfit/outfit.service.interface';
 import type { IPhysicalProfileService } from '../../Wardrope.Core/services/ServicesInterface/PhysicalProfile/physical-profile.service.interface';
 import type { IPreferencesService } from '../../Wardrope.Core/services/ServicesInterface/Preferences/preferences.service.interface';
 import type { IProductImportService } from '../../Wardrope.Core/services/ServicesInterface/ProductImport/product-import.service.interface';
-import type { IWardrobeService } from '../../Wardrope.Core/services/ServicesInterface/Wardrobe/wardrobe.service.interface';
+import type { IWardropeService } from '../../Wardrope.Core/services/ServicesInterface/Wardrobe/wardrobe.service.interface';
 import type { IWeatherService } from '../../Wardrope.Core/services/ServicesInterface/Weather/weather.service.interface';
 import { createApiRouter } from '.';
 
 const healthService: IHealthService = {
-  getStatus: () => ({
-    service: 'wardrope-server',
-    environment: 'test',
-    uptimeSeconds: 1,
-    timestamp: new Date().toISOString(),
-    database: 'connected',
-  }),
+  getStatus: () => ({ service: 'wardrope-server', environment: 'test', uptimeSeconds: 1, timestamp: new Date().toISOString(), database: 'connected' }),
   getReadiness: () => ({ ready: true, database: 'connected', timestamp: new Date().toISOString() }),
 };
 
@@ -73,6 +68,23 @@ const fragranceImageService: IFragranceImageService = {
   remove: async () => ({ ok: false, reason: 'NOT_FOUND' }),
 };
 
+const outfitService: IOutfitService = {
+  create: async () => ({ ok: false, reason: 'WARDROBE_ITEM_NOT_FOUND' }),
+  list: async (_userId, query) => ({ items: [], pagination: { page: query.page, pageSize: query.pageSize, totalItems: 0, totalPages: 0 } }),
+  getById: async () => null,
+  update: async () => ({ ok: false, reason: 'NOT_FOUND' }),
+  delete: async () => false,
+};
+
+const wearHistoryService: IWearHistoryService = {
+  create: async () => ({ ok: false, reason: 'WARDROBE_ITEM_NOT_FOUND' }),
+  recordOutfitWear: async () => ({ ok: false, reason: 'OUTFIT_NOT_FOUND' }),
+  list: async (_userId, query) => ({ items: [], pagination: { page: query.page, pageSize: query.pageSize, totalItems: 0, totalPages: 0 } }),
+  getById: async () => null,
+  update: async () => ({ ok: false, reason: 'NOT_FOUND' }),
+  delete: async () => false,
+};
+
 const originalNodeEnv = process.env.NODE_ENV;
 afterEach(() => { process.env.NODE_ENV = originalNodeEnv; });
 
@@ -104,6 +116,11 @@ describe('createApiRouter feature composition', () => {
 
   it('fails closed outside test when Fragrances are not wired', () => {
     process.env.NODE_ENV = 'production';
+    expect(() => createApiRouter(healthService, authService, wardrobeService, undefined, physicalProfileService, productImportService, preferencesService, weatherService)).toThrow(/Fragrance services are required/i);
+  });
+
+  it('fails closed outside test when Outfits and Wear History are not wired', () => {
+    process.env.NODE_ENV = 'production';
     expect(() => createApiRouter(
       healthService,
       authService,
@@ -113,7 +130,9 @@ describe('createApiRouter feature composition', () => {
       productImportService,
       preferencesService,
       weatherService,
-    )).toThrow(/Fragrance services are required/i);
+      fragranceService,
+      fragranceImageService,
+    )).toThrow(/Outfit and Wear History services are required/i);
   });
 
   it('allows production composition when required features are explicitly supplied', () => {
@@ -129,6 +148,8 @@ describe('createApiRouter feature composition', () => {
       weatherService,
       fragranceService,
       fragranceImageService,
+      outfitService,
+      wearHistoryService,
     )).not.toThrow();
   });
 });
