@@ -51,8 +51,13 @@ export async function createApplicationRuntime(): Promise<ApplicationRuntime> {
     tokenService,
     env.authSessionTtlMs,
   );
-  const wardrobeService = new WardrobeService(wardrobeRepository, fileStorage, logger);
+  const wardrobeService = new WardrobeService(wardrobeRepository, {
+    repository: wardrobeRepository,
+    fileStorage,
+    logger,
+  });
   const wardrobeImageService = new WardrobeImageService(
+    wardrobeRepository,
     wardrobeRepository,
     imageProcessing,
     fileStorage,
