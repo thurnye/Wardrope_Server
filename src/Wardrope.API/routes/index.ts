@@ -6,6 +6,7 @@ import type { IPreferencesService } from '../../Wardrope.Core/services/ServicesI
 import type { IProductImportService } from '../../Wardrope.Core/services/ServicesInterface/ProductImport/product-import.service.interface';
 import type { IWardrobeService } from '../../Wardrope.Core/services/ServicesInterface/Wardrobe/wardrobe.service.interface';
 import type { IWardrobeImageService } from '../../Wardrope.Core/services/ServicesInterface/WardrobeImage/wardrobe-image.service.interface';
+import type { IWeatherService } from '../../Wardrope.Core/services/ServicesInterface/Weather/weather.service.interface';
 import { createAuthRoutes } from './AuthRoute/auth.routes';
 import { createHealthRoutes } from './HealthRoute/health.routes';
 import { createPhysicalProfileRoutes } from './PhysicalProfileRoute/physical-profile.routes';
@@ -13,6 +14,7 @@ import { createPreferencesRoutes } from './PreferencesRoute/preferences.routes';
 import { createProductImportRoutes } from './ProductImportRoute/product-import.routes';
 import { createWardrobeRoutes } from './WardrobeRoute/wardrobe.routes';
 import { createWardrobeImageRoutes } from './WardrobeImageRoute/wardrobe-image.routes';
+import { createWeatherRoutes } from './WeatherRoute/weather.routes';
 
 export function createApiRouter(
   healthService: IHealthService,
@@ -22,6 +24,7 @@ export function createApiRouter(
   physicalProfileService?: IPhysicalProfileService,
   productImportService?: IProductImportService,
   preferencesService?: IPreferencesService,
+  weatherService?: IWeatherService,
 ): Router {
   if (!physicalProfileService && process.env.NODE_ENV !== 'test') {
     throw new Error('Physical Profile service is required to create the Wardrope API router.');
@@ -31,6 +34,9 @@ export function createApiRouter(
   }
   if (!preferencesService && process.env.NODE_ENV !== 'test') {
     throw new Error('Preferences service is required to create the Wardrope API router.');
+  }
+  if (!weatherService && process.env.NODE_ENV !== 'test') {
+    throw new Error('Weather service is required to create the Wardrope API router.');
   }
 
   const router = Router();
@@ -52,6 +58,10 @@ export function createApiRouter(
 
   if (preferencesService) {
     router.use('/preferences', createPreferencesRoutes(preferencesService, authService));
+  }
+
+  if (weatherService) {
+    router.use('/weather', createWeatherRoutes(weatherService, authService));
   }
 
   return router;
