@@ -203,11 +203,15 @@ function buildWardrobeApp() {
   return createApp(createApiRouter(healthService, authService, wardrobeService));
 }
 
-function asUser(
-  req: request.Test,
+type HeaderSettable<T> = {
+  set(field: string, value: string): T;
+};
+
+function asUser<T extends HeaderSettable<T>>(
+  req: T,
   sessionToken = SESSION_A,
   csrfToken?: string,
-) {
+): T {
   req.set('Origin', 'http://localhost:5173');
   req.set('Cookie', `wardrope_session=${sessionToken}`);
   if (csrfToken) {
@@ -247,7 +251,7 @@ describe('Wardrope wardrobe API', () => {
     expect(response.body.error.code).toBe('AUTHENTICATION_REQUIRED');
   });
 
-  it('requires CSRF for wardrobe mutations', async () => {
+  it('requires CSRF for wardrobe creation', async () => {
     const response = await asUser(
       request(buildWardrobeApp()).post('/api/v1/wardrobe'),
     )
@@ -341,6 +345,14 @@ describe('Wardrope wardrobe API', () => {
     expect(JSON.stringify(filtered.body)).not.toContain('Private Red Jacket');
   });
 
+  it('rejects unknown wardrobe query parameters', async () => {
+    const response = await asUser(
+      request(buildWardrobeApp()).get('/api/v1/wardrobe?userId=someone-else'),
+    ).expect(400);
+
+    expect(response.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
   it('returns the same 404 for another owner and a missing item', async () => {
     const app = buildWardrobeApp();
     const created = await createItem(app);
@@ -394,6 +406,20 @@ describe('Wardrope wardrobe API', () => {
     });
     expect(new Date(updated.body.data.updatedAt).getTime())
       .toBeGreaterThan(new Date(createdUpdatedAt).getTime());
+  });
+
+  it('requires CSRF for wardrobe edits', async () => {
+    const app = buildWardrobeApp();
+    const created = await createItem(app);
+    const itemId = created.body.data.id as string;
+
+    const response = await asUser(
+      request(app).patch(`/api/v1/wardrobe/${itemId}`),
+    )
+      .send({ favorite: true })
+      .expect(403);
+
+    expect(response.body.error.code).toBe('CSRF_VALIDATION_FAILED');
   });
 
   it('rejects empty or ownership-manipulating patches', async () => {
