@@ -16,7 +16,8 @@
     "test:watch": "vitest"
   },
   "allowScripts": {
-    "esbuild@0.28.2": true
+    "esbuild@0.28.2": true,
+    "fsevents@2.3.3": true
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1045.0",
