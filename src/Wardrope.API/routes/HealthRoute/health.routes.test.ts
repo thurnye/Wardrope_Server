@@ -1,5 +1,6 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
+import type { IAuthService } from '../../../Wardrope.Core/services/ServicesInterface/Auth/auth.service.interface';
 import { HealthService } from '../../../Wardrope.Core/services/ServicesImplementation/Health/health.service';
 import type {
   DatabaseHealthStatus,
@@ -8,12 +9,21 @@ import type {
 import { createApp } from '../../server/app';
 import { createApiRouter } from '..';
 
+const noopAuthService: IAuthService = {
+  register: async () => ({ ok: false, reason: 'EMAIL_UNAVAILABLE' }),
+  login: async () => ({ ok: false, reason: 'INVALID_CREDENTIALS' }),
+  getSession: async () => ({ authenticated: false }),
+  authenticate: async () => null,
+  verifyCsrf: () => false,
+  logout: async () => undefined,
+};
+
 function buildTestApp(databaseStatus: DatabaseHealthStatus) {
   const healthRepository: IHealthRepository = {
     getDatabaseStatus: () => databaseStatus,
   };
   const healthService = new HealthService(healthRepository);
-  return createApp(createApiRouter(healthService));
+  return createApp(createApiRouter(healthService, noopAuthService));
 }
 
 describe('Wardrope health API', () => {
