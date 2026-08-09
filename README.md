@@ -41,11 +41,45 @@ GET  /api/v1/auth/session
 POST /api/v1/auth/logout
 ```
 
+Wardrobe:
+
+```text
+GET    /api/v1/wardrobe
+POST   /api/v1/wardrobe
+GET    /api/v1/wardrobe/:itemId
+PATCH  /api/v1/wardrobe/:itemId
+DELETE /api/v1/wardrobe/:itemId
+```
+
+Wardrobe reads require authentication. Wardrobe creates, edits and deletes require both authentication and a valid `X-CSRF-Token`. Ownership always comes from the authenticated session; the API does not accept a browser-supplied `userId` as an ownership authority.
+
+List filters are allowlisted: `page`, `pageSize`, `category`, `favorite`, and `search`. Search text is treated literally rather than as caller-controlled regular-expression syntax.
+
+Wardrobe items are deliberately editable after creation. `PATCH` may also explicitly clear nullable facts such as `brand`, `pattern`, and `size` by sending `null`.
+
 `/health` reports process liveness. `/health/readiness` returns `503` until required dependencies are ready.
 
 Authentication uses a host-only `HttpOnly` session cookie. The raw session token is never returned in JSON and only a SHA-256 hash is persisted. Login also issues a separate same-site CSRF cookie bound to the session's server-side CSRF hash. `GET /auth/session` returns the current public user and the same valid CSRF token when possible; it replaces the token only if the CSRF cookie is missing or invalid. Authenticated state-changing browser requests must send the token in `X-CSRF-Token`.
 
 Registration does not automatically create a session. For a valid registration payload, the API deliberately returns the same `201` acceptance response whether the normalized email is newly created or already unavailable. That prevents the registration endpoint from exposing account existence through status codes or response bodies. The user continues by signing in, where invalid credentials are also returned generically.
+
+## Wardrobe data principle
+
+Persisted wardrobe fields are objective product/ownership facts:
+
+- name
+- category and subcategory
+- brand
+- colors
+- materials
+- pattern
+- size
+- favorite state
+- created/updated timestamps
+
+Contextual labels such as `date-night`, `office`, `summer`, `formal`, or similar recommendation judgments are not stored as product facts. Recommendation services infer suitability from the item data plus the user's profile, preferences, occasion, weather, history, and other context.
+
+Images are intentionally not part of this CRUD contract yet. The next server slice adds the secure backend-only image/S3 flow before wardrobe creation is exposed in the web UI, so the user-facing wardrobe workflow is not shipped half-complete.
 
 ## Quality checks
 
@@ -101,5 +135,22 @@ AWS, database, AI, weather, signing and other privileged credentials are server-
 - stable CSRF bootstrap across browser refreshes/tabs without unnecessary cookie mutation;
 - dedicated register/login rate limits;
 - HTTP and crypto tests covering the important happy and abuse paths.
+
+### Wardrobe CRUD
+
+- strict objective wardrobe data model with bounded enums and text/list limits;
+- create, list, read, edit and delete endpoints;
+- authenticated user ownership derived only from the session;
+- Mongo queries scoped by both owner ID and item ID for item-level access;
+- wrong-owner resources deliberately look identical to missing resources;
+- CSRF enforcement on all wardrobe mutations;
+- strict schemas reject unknown fields, including attempted client ownership overrides;
+- bounded allowlisted filters and pagination;
+- escaped literal text search across name, brand and subcategory;
+- normalized whitespace and case-insensitive duplicate removal for colors/materials;
+- nullable fields can be intentionally cleared during edits;
+- owner/category/favorite database indexes;
+- HTTP tests for CRUD, validation, filtering, ownership isolation, CSRF and origin enforcement;
+- direct repository tests verify production Mongo owner filters and search escaping.
 
 Feature endpoints are added only when their complete controller, Core service, repository/provider behavior, authorization and failure-path tests are ready. We do not publish placeholder routes.

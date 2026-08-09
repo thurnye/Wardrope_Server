@@ -1,0 +1,83 @@
+export const WARDROBE_CATEGORIES = [
+  'top',
+  'bottom',
+  'one-piece',
+  'outerwear',
+  'footwear',
+  'bag',
+  'accessory',
+  'jewelry',
+] as const;
+
+export type WardrobeCategory = (typeof WARDROBE_CATEGORIES)[number];
+
+export const WARDROBE_PATTERNS = [
+  'solid',
+  'striped',
+  'checked',
+  'plaid',
+  'floral',
+  'graphic',
+  'geometric',
+  'animal-print',
+  'other',
+] as const;
+
+export type WardrobePattern = (typeof WARDROBE_PATTERNS)[number];
+
+export interface WardrobeItemDto {
+  id: string;
+  name: string;
+  category: WardrobeCategory;
+  subcategory: string;
+  brand: string | null;
+  colors: string[];
+  materials: string[];
+  pattern: WardrobePattern | null;
+  size: string | null;
+  favorite: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateWardrobeItemDto {
+  name: string;
+  category: WardrobeCategory;
+  subcategory: string;
+  brand?: string | null | undefined;
+  colors: string[];
+  materials?: string[] | undefined;
+  pattern?: WardrobePattern | null | undefined;
+  size?: string | null | undefined;
+  favorite?: boolean | undefined;
+}
+
+export interface UpdateWardrobeItemDto {
+  name?: string | undefined;
+  category?: WardrobeCategory | undefined;
+  subcategory?: string | undefined;
+  brand?: string | null | undefined;
+  colors?: string[] | undefined;
+  materials?: string[] | undefined;
+  pattern?: WardrobePattern | null | undefined;
+  size?: string | null | undefined;
+  favorite?: boolean | undefined;
+}
+
+export interface WardrobeListQueryDto {
+  page: number;
+  pageSize: number;
+  category?: WardrobeCategory | undefined;
+  favorite?: boolean | undefined;
+  search?: string | undefined;
+}
+
+export interface WardrobeListDto {
+  items: WardrobeItemDto[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+  };
+}

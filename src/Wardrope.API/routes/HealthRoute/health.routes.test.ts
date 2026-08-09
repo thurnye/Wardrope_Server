@@ -6,6 +6,7 @@ import type {
   DatabaseHealthStatus,
   IHealthRepository,
 } from '../../../Wardrope.DB/repositories/RepositoryInterface/Health/health.repository.interface';
+import { noopWardrobeService } from '../../../test/noop-services';
 import { createApp } from '../../server/app';
 import { createApiRouter } from '..';
 
@@ -23,7 +24,7 @@ function buildTestApp(databaseStatus: DatabaseHealthStatus) {
     getDatabaseStatus: () => databaseStatus,
   };
   const healthService = new HealthService(healthRepository);
-  return createApp(createApiRouter(healthService, noopAuthService));
+  return createApp(createApiRouter(healthService, noopAuthService, noopWardrobeService));
 }
 
 describe('Wardrope health API', () => {
