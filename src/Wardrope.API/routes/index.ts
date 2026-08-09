@@ -26,7 +26,6 @@ export function createApiRouter(
   }
 
   const router = Router();
-
   router.use('/health', createHealthRoutes(healthService));
   router.use('/auth', createAuthRoutes(authService));
   router.use('/wardrobe', createWardrobeRoutes(wardrobeService, authService));
