@@ -29,6 +29,7 @@ export interface IOutfitService {
 
 export interface IWearHistoryService {
   create(userId: string, input: CreateWearHistoryDto): Promise<WearHistoryMutationResult>;
+  recordOutfitWear(userId: string, outfitId: string, wornAt: string): Promise<WearHistoryMutationResult>;
   list(userId: string, query: WearHistoryListQueryDto): Promise<WearHistoryListDto>;
   getById(userId: string, historyId: string): Promise<WearHistoryDto | null>;
   update(userId: string, historyId: string, input: UpdateWearHistoryDto): Promise<WearHistoryMutationResult>;
