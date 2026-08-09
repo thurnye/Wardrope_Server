@@ -4,6 +4,9 @@
   "private": true,
   "description": "Wardrope API using Express, TypeScript, MongoDB and Moose-style N-tier architecture",
   "main": "dist/index.js",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
