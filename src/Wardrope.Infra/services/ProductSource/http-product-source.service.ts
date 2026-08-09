@@ -1,8 +1,8 @@
 import { lookup } from 'node:dns/promises';
+import type { IncomingMessage } from 'node:http';
 import { isIP } from 'node:net';
 import {
   request as httpsRequest,
-  type IncomingMessage,
   type RequestOptions,
 } from 'node:https';
 import {
