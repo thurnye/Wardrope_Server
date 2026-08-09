@@ -17,13 +17,11 @@ The shared object layout is intentionally not partitioned by `userId` or wardrob
     │   └── <random-uuid>.webp
     ├── user/
     │   └── <random-uuid>.<extension>
-    ├── Frangrances/
+    ├── fragrances/
     │   └── <random-uuid>.<extension>
     └── Footware/
         └── <random-uuid>.webp
 ```
-
-The folder names above intentionally match the product storage contract exactly, including casing and spelling.
 
 Current wardrobe category routing is server-owned:
 
@@ -31,7 +29,7 @@ Current wardrobe category routing is server-owned:
 - `bag`, `accessory`, `jewelry` -> `accessories`
 - `footwear` -> `Footware`
 
-The `user` namespace is reserved for user avatars. The `Frangrances` namespace is reserved for fragrance images when that feature is implemented.
+The `user` namespace is reserved for user avatars. The `fragrances` namespace is reserved for fragrance images when that feature is implemented.
 
 S3 remains private. Wardrobe image reads continue through the authenticated Wardrope API rather than exposing bucket names, object keys, AWS credentials, direct object URLs, or presigned browser upload destinations.
 
