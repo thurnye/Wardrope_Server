@@ -7,6 +7,7 @@ import type {
   RegisterRequestDto,
   SessionStatusDto,
 } from '../../../Wardrope.Core/Models/Auth/auth.model';
+import type { DressMeResponseDto } from '../../../Wardrope.Core/Models/DressMe/dress-me.model';
 import type { IDressMeService } from '../../../Wardrope.Core/services/ServicesInterface/DressMe/dress-me.service.interface';
 import type { IAuthService } from '../../../Wardrope.Core/services/ServicesInterface/Auth/auth.service.interface';
 import { createApp } from '../../server/app';
@@ -52,11 +53,11 @@ function asUser(test: request.Test, csrf?: string) {
   return test;
 }
 
-function response(forAt: string) {
+function response(forAt: string): DressMeResponseDto {
   return {
     forAt,
     generatedAt: new Date().toISOString(),
-    engine: 'baseline' as const,
+    engine: 'baseline',
     weather: {
       locationLabel: 'Toronto, Ontario, Canada',
       at: forAt,
@@ -72,7 +73,7 @@ function response(forAt: string) {
       wardrobeItemIds: [ITEM_ID],
       fragranceId: null,
       score: 80,
-      reasons: ['occasion-aligned' as const],
+      reasons: ['occasion-aligned'],
     }],
   };
 }
@@ -94,7 +95,7 @@ describe('Dress Me API', () => {
   it('accepts structured request-time context and never needs a free-text prompt', async () => {
     const forAt = new Date().toISOString();
     const service: IDressMeService = {
-      recommend: vi.fn(async () => ({ ok: true, response: response(forAt) })),
+      recommend: vi.fn(async () => ({ ok: true as const, response: response(forAt) })),
     };
     const result = await asUser(request(buildApp(service)).post('/api/v1/dress-me/recommend'), CSRF)
       .send({
