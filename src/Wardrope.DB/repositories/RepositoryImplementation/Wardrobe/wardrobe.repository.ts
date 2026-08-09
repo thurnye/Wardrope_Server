@@ -19,6 +19,7 @@ import type {
   WardrobeRepositoryQuery,
   WardrobeStoredImageRecord,
 } from '../../RepositoryInterface/Wardrobe/wardrobe.repository.interface';
+import type { IWardrobeImageRepository } from '../../RepositoryInterface/WardrobeImage/wardrobe-image.repository.interface';
 
 function parseObjectId(value: string): ObjectId | null {
   return ObjectId.isValid(value) ? new ObjectId(value) : null;
@@ -94,7 +95,7 @@ function imageCompareFilter(
   return filter;
 }
 
-export class WardrobeRepository implements IWardrobeRepository {
+export class WardrobeRepository implements IWardrobeRepository, IWardrobeImageRepository {
   constructor(private readonly database: MongoDatabaseConnection) {}
 
   private get collection() {
@@ -242,13 +243,12 @@ export class WardrobeRepository implements IWardrobeRepository {
       return null;
     }
 
-    const now = new Date();
     const result = await this.collection.updateOne(
       imageCompareFilter(_id, ownerId, expectedObjectKey),
       {
         $set: {
           image: toImageDocument(image),
-          updatedAt: now,
+          updatedAt: new Date(),
         },
       },
     );
@@ -291,7 +291,19 @@ export class WardrobeRepository implements IWardrobeRepository {
     return updated ? mapRecord(updated) : null;
   }
 
-  async delete(userId: string, itemId: string): Promise<WardrobeItemRecord | null> {
+  async delete(userId: string, itemId: string): Promise<boolean> {
+    const ownerId = parseObjectId(userId);
+    const _id = parseObjectId(itemId);
+
+    if (!ownerId || !_id) {
+      return false;
+    }
+
+    const result = await this.collection.deleteOne({ _id, userId: ownerId });
+    return result.deletedCount === 1;
+  }
+
+  async deleteWithRecord(userId: string, itemId: string): Promise<WardrobeItemRecord | null> {
     const ownerId = parseObjectId(userId);
     const _id = parseObjectId(itemId);
 
