@@ -6,6 +6,8 @@ import { rateLimit } from 'express-rate-limit';
 import helmet from 'helmet';
 import { env } from '../../config/env';
 
+const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/;
+
 export function configureSecurityMiddleware(app: Express): void {
   app.disable('x-powered-by');
 
@@ -15,7 +17,7 @@ export function configureSecurityMiddleware(app: Express): void {
 
   app.use((req: Request, res: Response, next: NextFunction) => {
     const incomingRequestId = req.header('x-request-id');
-    const requestId = incomingRequestId && incomingRequestId.length <= 128
+    const requestId = incomingRequestId && SAFE_REQUEST_ID.test(incomingRequestId)
       ? incomingRequestId
       : randomUUID();
 
@@ -43,7 +45,7 @@ export function configureSecurityMiddleware(app: Express): void {
         callback(null, false);
       },
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'X-CSRF-Token'],
       exposedHeaders: ['X-Request-Id', 'RateLimit'],
       maxAge: 600,
     }),
