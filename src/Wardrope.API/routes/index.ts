@@ -11,9 +11,8 @@ import { createWardrobeRoutes } from './WardrobeRoute/wardrobe.routes';
 import { createWardrobeImageRoutes } from './WardrobeImageRoute/wardrobe-image.routes';
 
 /**
- * The fourth argument remains the optional wardrobe-image service for backwards-compatible
- * isolated test composition. Production runtime must also provide Physical Profile as the
- * fifth argument; missing it fails closed outside NODE_ENV=test.
+ * Optional feature arguments keep isolated test routers lightweight. Production runtime
+ * explicitly wires Physical Profile and fails closed when it is absent.
  */
 export function createApiRouter(
   healthService: IHealthService,
