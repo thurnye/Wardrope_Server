@@ -11,6 +11,7 @@ import { WardrobeImageService } from './wardrobe-image.service';
 
 const USER_ID = '64b000000000000000000001';
 const ITEM_ID = '64c000000000000000000001';
+const NEW_OBJECT_KEY = `Wardrope/clothes/${USER_ID}/${ITEM_ID}/new.webp`;
 
 function item(imageObjectKey: string | null = null): WardrobeItemRecord {
   const now = new Date('2026-08-09T06:00:00.000Z');
@@ -73,7 +74,7 @@ function harness(current = item()) {
 
   const fileStorage: IFileStorageService = {
     storePrivateFile: vi.fn().mockResolvedValue({
-      objectKey: 'wardrobe/new.webp',
+      objectKey: NEW_OBJECT_KEY,
       etag: '"new"',
     }),
     getPrivateFile: vi.fn().mockResolvedValue({
@@ -110,7 +111,7 @@ function harness(current = item()) {
 }
 
 describe('WardrobeImageService', () => {
-  it('stores a new object, atomically switches Mongo, then retires the old object', async () => {
+  it('stores new clothes under a user/item scoped path, atomically switches Mongo, then retires the old object', async () => {
     const h = harness(item('wardrobe/old.webp'));
 
     const result = await h.service.replace(USER_ID, ITEM_ID, {
@@ -119,14 +120,20 @@ describe('WardrobeImageService', () => {
     });
 
     expect(result.ok).toBe(true);
+    expect(h.fileStorage.storePrivateFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pathSegments: ['clothes', USER_ID, ITEM_ID],
+        fileExtension: 'webp',
+      }),
+    );
     expect(h.imageRepository.replaceImage).toHaveBeenCalledWith(
       USER_ID,
       ITEM_ID,
       'wardrobe/old.webp',
-      expect.objectContaining({ objectKey: 'wardrobe/new.webp' }),
+      expect.objectContaining({ objectKey: NEW_OBJECT_KEY }),
     );
     expect(h.fileStorage.deletePrivateFile).toHaveBeenCalledWith('wardrobe/old.webp');
-    expect(JSON.stringify(result)).not.toContain('wardrobe/new.webp');
+    expect(JSON.stringify(result)).not.toContain(NEW_OBJECT_KEY);
   });
 
   it('deletes the newly uploaded object when Mongo compare-and-swap loses a race', async () => {
@@ -142,11 +149,11 @@ describe('WardrobeImageService', () => {
     });
 
     expect(result).toEqual({ ok: false, reason: 'CONFLICT' });
-    expect(h.fileStorage.deletePrivateFile).toHaveBeenCalledWith('wardrobe/new.webp');
+    expect(h.fileStorage.deletePrivateFile).toHaveBeenCalledWith(NEW_OBJECT_KEY);
     expect(h.fileStorage.deletePrivateFile).not.toHaveBeenCalledWith('wardrobe/old.webp');
   });
 
-  it('reads storage only after owner-scoped item lookup finds image metadata', async () => {
+  it('reads an existing legacy object key exactly as stored for backward compatibility', async () => {
     const h = harness(item('wardrobe/private.webp'));
 
     const result = await h.service.read(USER_ID, ITEM_ID);
