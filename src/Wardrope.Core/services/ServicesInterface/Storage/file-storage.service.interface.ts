@@ -2,7 +2,7 @@ export const PRIVATE_STORAGE_FOLDERS = [
   'clothings',
   'accessories',
   'user',
-  'Frangrances',
+  'fragrances',
   'Footware',
 ] as const;
 
