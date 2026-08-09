@@ -1,6 +1,8 @@
 import { assertRuntimeConfiguration, env } from '../../config/env';
 import { getImageStorageConfig } from '../../config/image-storage.env';
 import { AuthService } from '../../Wardrope.Core/services/ServicesImplementation/Auth/auth.service';
+import { BaselineDressMeRecommendationProvider } from '../../Wardrope.Core/services/ServicesImplementation/DressMe/baseline-dress-me-recommendation.provider';
+import { DressMeService } from '../../Wardrope.Core/services/ServicesImplementation/DressMe/dress-me.service';
 import { FragranceService } from '../../Wardrope.Core/services/ServicesImplementation/Fragrance/fragrance.service';
 import { FragranceImageService } from '../../Wardrope.Core/services/ServicesImplementation/FragranceImage/fragrance-image.service';
 import { HealthService } from '../../Wardrope.Core/services/ServicesImplementation/Health/health.service';
@@ -19,6 +21,7 @@ import { OutfitRepository, WearHistoryRepository } from '../../Wardrope.DB/repos
 import { PhysicalProfileRepository } from '../../Wardrope.DB/repositories/RepositoryImplementation/PhysicalProfile/physical-profile.repository';
 import { PreferencesRepository } from '../../Wardrope.DB/repositories/RepositoryImplementation/Preferences/preferences.repository';
 import { WardrobeRepository } from '../../Wardrope.DB/repositories/RepositoryImplementation/Wardrobe/wardrobe.repository';
+import { OpenAiDressMeRecommendationProvider } from '../../Wardrope.Infra/services/DressMe/openai-dress-me-recommendation.provider';
 import { SharpImageProcessingService } from '../../Wardrope.Infra/services/ImageProcessing/sharp-image-processing.service';
 import { ConsoleApplicationLogger } from '../../Wardrope.Infra/services/Logging/console-application-logger.service';
 import { HttpProductSourceService } from '../../Wardrope.Infra/services/ProductSource/http-product-source.service';
@@ -90,6 +93,24 @@ export async function createApplicationRuntime(): Promise<ApplicationRuntime> {
   const wardrobeImageService = new WardrobeImageService(wardrobeRepository, wardrobeRepository, imageProcessing, fileStorage, logger);
   const productImportService = new ProductImportService(wardrobeRepository, wardrobeImageService, productSourceService);
 
+  const baselineDressMeProvider = new BaselineDressMeRecommendationProvider();
+  const openAiEnabled = Boolean(env.openAiApiKey && env.openAiDressMeModel);
+  const primaryDressMeProvider = openAiEnabled
+    ? new OpenAiDressMeRecommendationProvider(env.openAiApiKey!, env.openAiDressMeModel!)
+    : baselineDressMeProvider;
+  const dressMeService = new DressMeService(
+    wardrobeService,
+    fragranceService,
+    outfitService,
+    wearHistoryService,
+    physicalProfileService,
+    preferencesService,
+    weatherService,
+    primaryDressMeProvider,
+    logger,
+    openAiEnabled ? baselineDressMeProvider : undefined,
+  );
+
   return {
     apiRouter: createApiRouter(
       healthService,
@@ -104,6 +125,7 @@ export async function createApplicationRuntime(): Promise<ApplicationRuntime> {
       fragranceImageService,
       outfitService,
       wearHistoryService,
+      dressMeService,
     ),
     async shutdown() {
       fileStorage.shutdown();
