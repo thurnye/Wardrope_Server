@@ -7,9 +7,10 @@ import type { IOutfitService, IWearHistoryService } from '../../Wardrope.Core/se
 import type { IPhysicalProfileService } from '../../Wardrope.Core/services/ServicesInterface/PhysicalProfile/physical-profile.service.interface';
 import type { IPreferencesService } from '../../Wardrope.Core/services/ServicesInterface/Preferences/preferences.service.interface';
 import type { IProductImportService } from '../../Wardrope.Core/services/ServicesInterface/ProductImport/product-import.service.interface';
-import type { IWardrobeService } from '../../Wardrope.Core/services/ServicesInterface/Wardrobe/wardrobe.service.interface';
 import type { IWeatherService } from '../../Wardrope.Core/services/ServicesInterface/Weather/weather.service.interface';
 import { createApiRouter } from '.';
+
+type WardrobeServiceContract = Parameters<typeof createApiRouter>[2];
 
 const healthService: IHealthService = {
   getStatus: () => ({ service: 'wardrope-server', environment: 'test', uptimeSeconds: 1, timestamp: new Date().toISOString(), database: 'connected' }),
@@ -31,7 +32,7 @@ const wardrobeService = {
   getById: async () => null,
   update: async () => null,
   delete: async () => false,
-} satisfies IWardrobeService;
+} satisfies WardrobeServiceContract;
 
 const physicalProfileService: IPhysicalProfileService = {
   get: async () => null,
