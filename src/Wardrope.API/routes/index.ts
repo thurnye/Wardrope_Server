@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { IAuthService } from '../../Wardrope.Core/services/ServicesInterface/Auth/auth.service.interface';
+import type { IDressMeService } from '../../Wardrope.Core/services/ServicesInterface/DressMe/dress-me.service.interface';
 import type { IFragranceService } from '../../Wardrope.Core/services/ServicesInterface/Fragrance/fragrance.service.interface';
 import type { IFragranceImageService } from '../../Wardrope.Core/services/ServicesInterface/FragranceImage/fragrance-image.service.interface';
 import type { IHealthService } from '../../Wardrope.Core/services/ServicesInterface/Health/health.service.interface';
@@ -12,6 +13,7 @@ import type { IPreferencesService } from '../../Wardrope.Core/services/ServicesI
 import type { IProductImportService } from '../../Wardrope.Core/services/ServicesInterface/ProductImport/product-import.service.interface';
 import type { IWeatherService } from '../../Wardrope.Core/services/ServicesInterface/Weather/weather.service.interface';
 import { createAuthRoutes } from './AuthRoute/auth.routes';
+import { createDressMeRoutes } from './DressMeRoute/dress-me.routes';
 import { createFragranceRoutes } from './FragranceRoute/fragrance.routes';
 import { createFragranceImageRoutes } from './FragranceImageRoute/fragrance-image.routes';
 import { createHealthRoutes } from './HealthRoute/health.routes';
@@ -39,6 +41,7 @@ export function createApiRouter(
   fragranceImageService?: IFragranceImageService,
   outfitService?: IOutfitService,
   wearHistoryService?: IWearHistoryService,
+  dressMeService?: IDressMeService,
 ): Router {
   if (!physicalProfileService && process.env.NODE_ENV !== 'test') {
     throw new Error('Physical Profile service is required to create the Wardrope API router.');
@@ -58,6 +61,9 @@ export function createApiRouter(
   if ((!outfitService || !wearHistoryService) && process.env.NODE_ENV !== 'test') {
     throw new Error('Outfit and Wear History services are required to create the Wardrope API router.');
   }
+  if (!dressMeService && process.env.NODE_ENV !== 'test') {
+    throw new Error('Dress Me service is required to create the Wardrope API router.');
+  }
 
   const router = Router();
   router.use('/health', createHealthRoutes(healthService));
@@ -76,6 +82,7 @@ export function createApiRouter(
   if (outfitService && wearHistoryService) {
     router.use('/outfits', createOutfitRoutes(outfitService, wearHistoryService, authService));
   }
+  if (dressMeService) router.use('/dress-me', createDressMeRoutes(dressMeService, authService));
 
   return router;
 }
