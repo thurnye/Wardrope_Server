@@ -28,6 +28,7 @@ export interface WardrobeItemDocument {
   pattern: WardrobePattern | null;
   size: string | null;
   favorite: boolean;
+  sourceUrl?: string | null;
   image?: WardrobeImageDocument | null;
   createdAt: Date;
   updatedAt: Date;

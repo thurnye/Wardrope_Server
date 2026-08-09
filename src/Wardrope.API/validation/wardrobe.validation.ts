@@ -10,6 +10,14 @@ const brandSchema = z.string().trim().min(1).max(80);
 const colorSchema = z.string().trim().min(1).max(40);
 const materialSchema = z.string().trim().min(1).max(60);
 const sizeSchema = z.string().trim().min(1).max(40);
+const sourceUrlSchema = z
+  .string()
+  .trim()
+  .max(2_048)
+  .url()
+  .refine((value) => new URL(value).protocol === 'https:', {
+    message: 'Product links must use HTTPS.',
+  });
 
 export const wardrobeItemIdParamsSchema = z
   .object({
@@ -28,6 +36,7 @@ export const createWardrobeItemBodySchema = z
     pattern: z.enum(WARDROBE_PATTERNS).nullable().optional(),
     size: sizeSchema.nullable().optional(),
     favorite: z.boolean().optional(),
+    sourceUrl: sourceUrlSchema.nullable().optional(),
   })
   .strict();
 
@@ -42,11 +51,18 @@ export const updateWardrobeItemBodySchema = z
     pattern: z.enum(WARDROBE_PATTERNS).nullable().optional(),
     size: sizeSchema.nullable().optional(),
     favorite: z.boolean().optional(),
+    sourceUrl: sourceUrlSchema.nullable().optional(),
   })
   .strict()
   .refine((value) => Object.keys(value).length > 0, {
     message: 'At least one wardrobe field must be provided.',
   });
+
+export const productImportPreviewBodySchema = z
+  .object({
+    sourceUrl: sourceUrlSchema,
+  })
+  .strict();
 
 export const wardrobeListQuerySchema = z
   .object({

@@ -27,6 +27,7 @@ export interface WardrobeItemRecord {
   pattern: WardrobePattern | null;
   size: string | null;
   favorite: boolean;
+  sourceUrl?: string | null;
   image?: WardrobeStoredImageRecord | null;
   createdAt: Date;
   updatedAt: Date;

@@ -23,6 +23,13 @@ function normalizeNullableText(value: string | null): string | null {
   return value === null ? null : normalizeText(value);
 }
 
+function normalizeSourceUrl(value: string | null): string | null {
+  if (value === null) return null;
+  const url = new URL(value.trim());
+  url.hash = '';
+  return url.toString();
+}
+
 function normalizeList(values: string[]): string[] {
   const seen = new Set<string>();
   const normalized: string[] = [];
@@ -51,6 +58,7 @@ function normalizeCreate(input: CreateWardrobeItemDto): CreateWardrobeItemDto {
     pattern: input.pattern ?? null,
     size: input.size === undefined ? null : normalizeNullableText(input.size),
     favorite: input.favorite ?? false,
+    sourceUrl: input.sourceUrl === undefined ? null : normalizeSourceUrl(input.sourceUrl),
   };
 }
 
@@ -66,6 +74,7 @@ function normalizeUpdate(input: UpdateWardrobeItemDto): UpdateWardrobeItemDto {
   if (input.pattern !== undefined) normalized.pattern = input.pattern;
   if (input.size !== undefined) normalized.size = normalizeNullableText(input.size);
   if (input.favorite !== undefined) normalized.favorite = input.favorite;
+  if (input.sourceUrl !== undefined) normalized.sourceUrl = normalizeSourceUrl(input.sourceUrl);
 
   return normalized;
 }

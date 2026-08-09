@@ -58,6 +58,7 @@ function mapRecord(document: WardrobeItemDocument): WardrobeItemRecord {
     pattern: document.pattern,
     size: document.size,
     favorite: document.favorite,
+    sourceUrl: document.sourceUrl ?? null,
     image: mapImage(document.image),
     createdAt: document.createdAt,
     updatedAt: document.updatedAt,
@@ -124,6 +125,7 @@ export class WardrobeRepository implements IWardrobeRepository, IWardrobeImageRe
       pattern: input.pattern ?? null,
       size: input.size ?? null,
       favorite: input.favorite ?? false,
+      sourceUrl: input.sourceUrl ?? null,
       image: null,
       createdAt: now,
       updatedAt: now,
@@ -216,6 +218,7 @@ export class WardrobeRepository implements IWardrobeRepository, IWardrobeImageRe
     if (input.pattern !== undefined) updateFields.pattern = input.pattern;
     if (input.size !== undefined) updateFields.size = input.size;
     if (input.favorite !== undefined) updateFields.favorite = input.favorite;
+    if (input.sourceUrl !== undefined) updateFields.sourceUrl = input.sourceUrl;
 
     const result = await this.collection.updateOne(
       { _id, userId: ownerId },
