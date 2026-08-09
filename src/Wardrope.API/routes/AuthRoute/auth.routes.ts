@@ -29,7 +29,7 @@ export function createAuthRoutes(authService: IAuthService): Router {
     loginRateLimiter,
     controller.login,
   );
-  router.get('/session', controller.getSession);
+  router.get('/session', requireTrustedBrowserOrigin, controller.getSession);
   router.post(
     '/logout',
     requireTrustedBrowserOrigin,
