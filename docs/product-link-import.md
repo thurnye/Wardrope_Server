@@ -26,9 +26,13 @@ The backend importer:
 - rejects literal IP addresses;
 - rejects localhost, local/internal names and known cloud-metadata hostnames;
 - resolves domain names before connecting and rejects a hostname if any resolved address is not publicly routable;
-- pins a validated public address for the HTTPS connection while retaining the original hostname for TLS SNI and the Host header;
+- validates the complete DNS answer set before attempting any connection, deduplicates validated addresses, prefers IPv4 for broader hosting compatibility, and caps one request to four pinned-address attempts;
+- retries only validated pinned addresses after transport-level failures and never falls back to an unvalidated hostname connection;
+- retains the original hostname for TLS SNI and the Host header while connecting to the validated public address;
 - repeats URL and DNS validation on every redirect and limits redirect depth;
-- enforces response time, header and byte-size limits;
+- applies one bounded request deadline across address retries so multi-address fallback cannot create unbounded request time;
+- enforces response header and byte-size limits;
+- records only bounded operational diagnostics for DNS, timeout, TLS, network, redirect-limit and remote HTTP failures; diagnostics include the hostname and safe status/error codes but not query strings, response bodies, cookies, Authorization headers or Wardrope credentials;
 - does not forward user cookies, Wardrope credentials or Authorization headers to retailer sites;
 - does not persist arbitrary remote HTML;
 - never accepts an image URL from the browser for archival;
