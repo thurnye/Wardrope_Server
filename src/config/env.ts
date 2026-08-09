@@ -9,6 +9,7 @@ const envSchema = z.object({
   MONGODB_URI: z.string().min(1).optional(),
   MONGODB_DB_NAME: z.string().min(1).default('wardrope'),
   AUTH_SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(168).default(24),
+  WEATHER_API_KEY: z.string().trim().min(1).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -32,11 +33,16 @@ export const env = Object.freeze({
   mongoUri: parsed.data.MONGODB_URI,
   mongoDbName: parsed.data.MONGODB_DB_NAME,
   authSessionTtlMs: parsed.data.AUTH_SESSION_TTL_HOURS * 60 * 60 * 1_000,
+  weatherApiKey: parsed.data.WEATHER_API_KEY,
 });
 
 export function assertRuntimeConfiguration(): void {
   if (env.nodeEnv !== 'test' && !env.mongoUri) {
     throw new Error('MONGODB_URI is required when running the Wardrope API.');
+  }
+
+  if (env.nodeEnv !== 'test' && !env.weatherApiKey) {
+    throw new Error('WEATHER_API_KEY is required when running the Wardrope API.');
   }
 
   if (env.nodeEnv === 'production') {
