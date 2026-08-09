@@ -9,7 +9,6 @@ import {
   loginRateLimiter,
   registerRateLimiter,
 } from '../../middleware/auth-rate-limit.middleware';
-import { requireTrustedBrowserOrigin } from '../../middleware/origin.middleware';
 
 export function createAuthRoutes(authService: IAuthService): Router {
   const router = Router();
@@ -17,26 +16,10 @@ export function createAuthRoutes(authService: IAuthService): Router {
   const authenticate = createAuthenticationMiddleware(authService);
   const requireCsrf = createCsrfMiddleware(authService);
 
-  router.post(
-    '/register',
-    requireTrustedBrowserOrigin,
-    registerRateLimiter,
-    controller.register,
-  );
-  router.post(
-    '/login',
-    requireTrustedBrowserOrigin,
-    loginRateLimiter,
-    controller.login,
-  );
-  router.get('/session', requireTrustedBrowserOrigin, controller.getSession);
-  router.post(
-    '/logout',
-    requireTrustedBrowserOrigin,
-    authenticate,
-    requireCsrf,
-    controller.logout,
-  );
+  router.post('/register', registerRateLimiter, controller.register);
+  router.post('/login', loginRateLimiter, controller.login);
+  router.get('/session', controller.getSession);
+  router.post('/logout', authenticate, requireCsrf, controller.logout);
 
   return router;
 }
