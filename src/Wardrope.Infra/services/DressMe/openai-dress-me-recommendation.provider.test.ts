@@ -111,6 +111,7 @@ function context(): DressMeProviderContext {
       usualOnePieceSize: null,
       usualOuterwearSize: 'M',
       shoeSize: null,
+      shoeSizeSystem: null,
       createdAt: NOW,
       updatedAt: NOW,
     },
@@ -137,7 +138,7 @@ function context(): DressMeProviderContext {
       chanceOfSnowPercent: 0,
       windKph: 10,
     },
-  } as DressMeProviderContext;
+  };
 }
 
 function successfulResponse() {
@@ -241,7 +242,7 @@ describe('OpenAiDressMeRecommendationProvider', () => {
     expect((modelContext.recentWearHistory as unknown[])).toHaveLength(30);
   });
 
-  it('rejects malformed, oversized-style, or non-success provider responses generically', async () => {
+  it('rejects malformed or non-success provider responses generically', async () => {
     const nonSuccess = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { message: 'secret upstream detail' } }), {
       status: 429,
       headers: { 'content-type': 'application/json' },

@@ -14,6 +14,7 @@ import type {
 
 const SAFE_PATH_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 const SAFE_EXTENSION = /^[A-Za-z0-9]{1,16}$/;
+const MAX_PATH_SEGMENTS = 8;
 
 function assertSafePathSegment(segment: string): string {
   if (!SAFE_PATH_SEGMENT.test(segment)) {
@@ -21,6 +22,13 @@ function assertSafePathSegment(segment: string): string {
   }
 
   return segment;
+}
+
+function assertSafePathSegments(segments: readonly string[]): string[] {
+  if (segments.length < 1 || segments.length > MAX_PATH_SEGMENTS) {
+    throw new Error('Invalid private storage path depth.');
+  }
+  return segments.map(assertSafePathSegment);
 }
 
 function assertSafeFileExtension(extension: string): string {
@@ -49,11 +57,11 @@ export class S3FileStorageService implements IFileStorageService {
   }
 
   async storePrivateFile(input: StorePrivateFileInput): Promise<StoredPrivateFile> {
-    const folder = assertSafePathSegment(input.folder);
+    const pathSegments = assertSafePathSegments(input.pathSegments);
     const extension = assertSafeFileExtension(input.fileExtension);
     const objectKey = [
       this.options.rootPrefix,
-      folder,
+      ...pathSegments,
       `${randomUUID()}.${extension}`,
     ].join('/');
 

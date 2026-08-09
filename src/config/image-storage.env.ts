@@ -10,7 +10,7 @@ const s3PrefixSegment = z
 const imageStorageEnvSchema = z.object({
   AWS_REGION: z.string().trim().min(1),
   AWS_S3_BUCKET_NAME: z.string().trim().min(3).max(63),
-  AWS_S3_ROOT_PREFIX: s3PrefixSegment.default('wardrope'),
+  AWS_S3_ROOT_PREFIX: s3PrefixSegment.default('Wardrope'),
 });
 
 export interface ImageStorageConfig {
