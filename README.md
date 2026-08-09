@@ -43,7 +43,7 @@ POST /api/v1/auth/logout
 
 `/health` reports process liveness. `/health/readiness` returns `503` until required dependencies are ready.
 
-Authentication uses a host-only `HttpOnly` session cookie. The raw session token is never returned in JSON and only a SHA-256 hash is persisted. `GET /auth/session` returns the current public user plus a rotated CSRF token when authenticated. Authenticated state-changing browser requests must send that token in `X-CSRF-Token`.
+Authentication uses a host-only `HttpOnly` session cookie. The raw session token is never returned in JSON and only a SHA-256 hash is persisted. Login also issues a separate same-site CSRF cookie bound to the session's server-side CSRF hash. `GET /auth/session` returns the current public user and the same valid CSRF token when possible; it replaces the token only if the CSRF cookie is missing or invalid. Authenticated state-changing browser requests must send the token in `X-CSRF-Token`.
 
 Registration does not automatically create a session; the user signs in after account creation. This avoids making user creation and session creation an artificial cross-collection transaction in the MVP.
 
@@ -95,8 +95,8 @@ AWS, database, AI, weather, signing and other privileged credentials are server-
 - random server-managed session tokens stored only as hashes in MongoDB;
 - MongoDB TTL expiry for sessions;
 - `HttpOnly`, `SameSite=Lax` session cookies and production `__Host-` prefix;
-- CSRF token rotation and enforcement;
-- trusted browser-Origin enforcement for auth writes;
+- same-site CSRF cookie bound to a server-side CSRF hash, plus header enforcement for authenticated writes;
+- trusted browser-Origin enforcement for auth endpoints, including session bootstrap;
 - dedicated register/login rate limits;
 - HTTP and crypto tests covering the important happy and abuse paths.
 
