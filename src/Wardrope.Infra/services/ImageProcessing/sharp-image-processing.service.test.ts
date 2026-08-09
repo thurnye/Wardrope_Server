@@ -1,6 +1,5 @@
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
-import { WardrobeImageValidationError } from '../../../Wardrope.Core/services/ServicesInterface/ImageProcessing/image-processing.service.interface';
 import { SharpImageProcessingService } from './sharp-image-processing.service';
 
 async function png(width = 1200, height = 1600): Promise<Buffer> {
@@ -42,7 +41,7 @@ describe('SharpImageProcessingService', () => {
     await expect(service.processWardrobeImage({
       bytes: Buffer.from('<script>alert(1)</script>'),
       declaredContentType: 'image/jpeg',
-    })).rejects.toMatchObject<Partial<WardrobeImageValidationError>>({
+    })).rejects.toMatchObject({
       reason: 'INVALID_IMAGE',
     });
   });
@@ -53,7 +52,7 @@ describe('SharpImageProcessingService', () => {
     await expect(service.processWardrobeImage({
       bytes: source,
       declaredContentType: 'image/png',
-    })).rejects.toMatchObject<Partial<WardrobeImageValidationError>>({
+    })).rejects.toMatchObject({
       reason: 'IMAGE_DIMENSIONS_EXCEEDED',
     });
   });
@@ -62,7 +61,7 @@ describe('SharpImageProcessingService', () => {
     await expect(service.processWardrobeImage({
       bytes: new Uint8Array(),
       declaredContentType: null,
-    })).rejects.toMatchObject<Partial<WardrobeImageValidationError>>({
+    })).rejects.toMatchObject({
       reason: 'INVALID_IMAGE',
     });
   });
