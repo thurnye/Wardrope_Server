@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { IAuthService } from '../../Wardrope.Core/services/ServicesInterface/Auth/auth.service.interface';
 import type { IHealthService } from '../../Wardrope.Core/services/ServicesInterface/Health/health.service.interface';
 import type { IPhysicalProfileService } from '../../Wardrope.Core/services/ServicesInterface/PhysicalProfile/physical-profile.service.interface';
+import type { IPreferencesService } from '../../Wardrope.Core/services/ServicesInterface/Preferences/preferences.service.interface';
 import type { IProductImportService } from '../../Wardrope.Core/services/ServicesInterface/ProductImport/product-import.service.interface';
 import type { IWardrobeService } from '../../Wardrope.Core/services/ServicesInterface/Wardrobe/wardrobe.service.interface';
 import { createApiRouter } from '.';
@@ -57,6 +58,12 @@ const productImportService: IProductImportService = {
   importImage: async () => ({ ok: false, reason: 'SOURCE_UNAVAILABLE' }),
 };
 
+const preferencesService: IPreferencesService = {
+  get: async () => null,
+  replace: async () => { throw new Error('not used'); },
+  reset: async () => undefined,
+};
+
 const originalNodeEnv = process.env.NODE_ENV;
 
 afterEach(() => {
@@ -87,6 +94,18 @@ describe('createApiRouter feature composition', () => {
     )).toThrow(/Product Import service is required/i);
   });
 
+  it('fails closed outside test when Preferences is not wired', () => {
+    process.env.NODE_ENV = 'production';
+    expect(() => createApiRouter(
+      healthService,
+      authService,
+      wardrobeService,
+      undefined,
+      physicalProfileService,
+      productImportService,
+    )).toThrow(/Preferences service is required/i);
+  });
+
   it('allows production composition when required features are explicitly supplied', () => {
     process.env.NODE_ENV = 'production';
     expect(() => createApiRouter(
@@ -96,6 +115,7 @@ describe('createApiRouter feature composition', () => {
       undefined,
       physicalProfileService,
       productImportService,
+      preferencesService,
     )).not.toThrow();
   });
 });
