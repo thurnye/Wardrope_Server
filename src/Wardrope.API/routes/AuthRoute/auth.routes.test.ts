@@ -124,7 +124,7 @@ const validAccount = {
 };
 
 describe('Wardrope authentication API', () => {
-  it('registers a valid account without returning password material', async () => {
+  it('accepts valid registration without exposing account or password material', async () => {
     const response = await request(buildAuthApp())
       .post('/api/v1/auth/register')
       .set('Origin', 'http://localhost:5173')
@@ -132,9 +132,14 @@ describe('Wardrope authentication API', () => {
       .expect(201);
 
     expect(response.body.success).toBe(true);
-    expect(response.body.data.user.email).toBe(validAccount.email);
-    expect(response.body.data.user.displayName).toBe(validAccount.displayName);
+    expect(response.body.data).toEqual({
+      accepted: true,
+      message: 'If these account details are eligible, you can continue by signing in.',
+    });
+    expect(JSON.stringify(response.body)).not.toContain(validAccount.email);
+    expect(JSON.stringify(response.body)).not.toContain(validAccount.displayName);
     expect(JSON.stringify(response.body)).not.toMatch(/password|hashed:/i);
+    expect(response.headers['set-cookie']).toBeUndefined();
   });
 
   it('validates registration input before touching the account service', async () => {
@@ -158,10 +163,10 @@ describe('Wardrope authentication API', () => {
     );
   });
 
-  it('uses a generic duplicate-account response', async () => {
+  it('returns the same registration response for a duplicate normalized email', async () => {
     const app = buildAuthApp();
 
-    await request(app)
+    const created = await request(app)
       .post('/api/v1/auth/register')
       .set('Origin', 'http://localhost:5173')
       .send(validAccount)
@@ -171,10 +176,11 @@ describe('Wardrope authentication API', () => {
       .post('/api/v1/auth/register')
       .set('Origin', 'http://localhost:5173')
       .send({ ...validAccount, email: 'DANIEL@example.com' })
-      .expect(409);
+      .expect(201);
 
-    expect(duplicate.body.error.code).toBe('ACCOUNT_UNAVAILABLE');
-    expect(duplicate.body.error.message).not.toMatch(/already exists|registered|email exists/i);
+    expect(duplicate.body.data).toEqual(created.body.data);
+    expect(duplicate.body.success).toBe(true);
+    expect(duplicate.headers['set-cookie']).toBeUndefined();
   });
 
   it('rejects auth browser requests from an untrusted origin', async () => {
@@ -245,6 +251,7 @@ describe('Wardrope authentication API', () => {
     expect(bootstrap.body.data.authenticated).toBe(true);
     expect(bootstrap.body.data.user.email).toBe(validAccount.email);
     expect(bootstrap.body.data.csrfToken).toBe(login.body.data.csrfToken);
+    expect(bootstrap.headers['set-cookie']).toBeUndefined();
 
     const wrongCsrf = await agent
       .post('/api/v1/auth/logout')
