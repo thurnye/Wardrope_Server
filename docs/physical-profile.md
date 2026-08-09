@@ -51,3 +51,5 @@ The API and MongoDB store measurements in centimeters. Presentation layers may d
 - all-empty writes are rejected; use `DELETE` for an explicit reset;
 - profile IDs and internal ownership fields never appear in public DTOs;
 - profile endpoints inherit Wardrope's trusted-origin, rate-limit, request-ID, security-header, session, and error-sanitization middleware.
+
+These profile values remain private Wardrope application data. Future recommendation integrations must pass only the minimum fields needed for a specific request and must not treat profile values as privileged AI instructions.
