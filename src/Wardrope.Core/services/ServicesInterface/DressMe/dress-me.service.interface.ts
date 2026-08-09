@@ -1,4 +1,5 @@
 import type {
+  DressMeEngine,
   DressMeProviderContext,
   DressMeProviderRecommendation,
   DressMeRequestDto,
@@ -6,6 +7,7 @@ import type {
 } from '../../../Models/DressMe/dress-me.model';
 
 export interface IDressMeRecommendationProvider {
+  readonly engine: DressMeEngine;
   recommend(context: DressMeProviderContext): Promise<DressMeProviderRecommendation[]>;
 }
 
