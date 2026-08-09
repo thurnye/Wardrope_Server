@@ -10,7 +10,7 @@ import { FragranceImageService } from './fragrance-image.service';
 
 const USER_ID = '64b000000000000000000001';
 const FRAGRANCE_ID = '64d000000000000000000001';
-const NEW_KEY = 'wardrope/fragrances/new.webp';
+const NEW_KEY = `Wardrope/fragrances/${USER_ID}/${FRAGRANCE_ID}/new.webp`;
 const now = new Date('2026-08-09T15:00:00.000Z');
 
 function record(imageKey: string | null = null): FragranceRecord {
@@ -80,7 +80,7 @@ function harness(current = record()) {
 }
 
 describe('FragranceImageService', () => {
-  it('stores every new bottle image in the shared fragrances folder with no user/item path', async () => {
+  it('stores new bottle images under fragrances/user/fragrance', async () => {
     const h = harness(record('wardrope/fragrances/old.webp'));
     const result = await h.service.replace(USER_ID, FRAGRANCE_ID, {
       bytes: Buffer.from('input'),
@@ -89,11 +89,9 @@ describe('FragranceImageService', () => {
 
     expect(result.ok).toBe(true);
     expect(h.storage.storePrivateFile).toHaveBeenCalledWith(expect.objectContaining({
-      folder: 'fragrances',
+      pathSegments: ['fragrances', USER_ID, FRAGRANCE_ID],
       fileExtension: 'webp',
     }));
-    expect(JSON.stringify(vi.mocked(h.storage.storePrivateFile).mock.calls[0]?.[0])).not.toContain(USER_ID);
-    expect(JSON.stringify(vi.mocked(h.storage.storePrivateFile).mock.calls[0]?.[0])).not.toContain(FRAGRANCE_ID);
     expect(h.storage.deletePrivateFile).toHaveBeenCalledWith('wardrope/fragrances/old.webp');
     expect(JSON.stringify(result)).not.toContain(NEW_KEY);
   });
@@ -121,5 +119,11 @@ describe('FragranceImageService', () => {
     })).resolves.toEqual({ ok: false, reason: 'NOT_FOUND' });
     expect(h.processing.processPrivateImage).not.toHaveBeenCalled();
     expect(h.storage.storePrivateFile).not.toHaveBeenCalled();
+  });
+
+  it('reads older object keys exactly as persisted', async () => {
+    const h = harness(record('wardrope/fragrances/legacy.webp'));
+    await expect(h.service.read(USER_ID, FRAGRANCE_ID)).resolves.toMatchObject({ ok: true });
+    expect(h.storage.getPrivateFile).toHaveBeenCalledWith('wardrope/fragrances/legacy.webp');
   });
 });
