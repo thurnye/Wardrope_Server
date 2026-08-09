@@ -10,8 +10,8 @@ import type {
 import type { IPhysicalProfileService } from '../../Wardrope.Core/services/ServicesInterface/PhysicalProfile/physical-profile.service.interface';
 import type { IPreferencesService } from '../../Wardrope.Core/services/ServicesInterface/Preferences/preferences.service.interface';
 import type { IProductImportService } from '../../Wardrope.Core/services/ServicesInterface/ProductImport/product-import.service.interface';
-import type { IWardropeService } from '../../Wardrope.Core/services/ServicesInterface/Wardrobe/wardrobe.service.interface';
-import type { IWardropeImageService } from '../../Wardrope.Core/services/ServicesInterface/WardrobeImage/wardrobe-image.service.interface';
+import type { IWardrobeService } from '../../Wardrope.Core/services/ServicesInterface/Wardrobe/wardrobe.service.interface';
+import type { IWardrobeImageService } from '../../Wardrope.Core/services/ServicesInterface/WardrobeImage/wardrobe-image.service.interface';
 import type { IWeatherService } from '../../Wardrope.Core/services/ServicesInterface/Weather/weather.service.interface';
 import { createAuthRoutes } from './AuthRoute/auth.routes';
 import { createFragranceRoutes } from './FragranceRoute/fragrance.routes';
@@ -28,8 +28,8 @@ import { createWeatherRoutes } from './WeatherRoute/weather.routes';
 export function createApiRouter(
   healthService: IHealthService,
   authService: IAuthService,
-  wardrobeService: IWardropeService,
-  wardrobeImageService?: IWardropeImageService,
+  wardrobeService: IWardrobeService,
+  wardrobeImageService?: IWardrobeImageService,
   physicalProfileService?: IPhysicalProfileService,
   productImportService?: IProductImportService,
   preferencesService?: IPreferencesService,
