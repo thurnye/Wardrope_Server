@@ -12,6 +12,8 @@ jobs:
   generate-lockfile:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -25,10 +27,54 @@ jobs:
       - name: Generate package lock without lifecycle scripts
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
 
-      - name: Emit compressed lockfile
+      - name: Upload generated lockfile
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: hotfix-package-lock
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 1
+
+  commit-lockfile:
+    needs: generate-lockfile
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Checkout hotfix branch without running repository code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: agent/aws-prefix-nodemon-hotfix
+
+      - name: Download generated lockfile from GitHub Actions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ needs.generate-lockfile.outputs.artifact-id }}
         shell: bash
         run: |
-          echo 'WARDROPE_LOCKFILE_BEGIN'
-          gzip -c package-lock.json | base64 -w0
-          echo
-          echo 'WARDROPE_LOCKFILE_END'
+          set -euo pipefail
+          curl --fail --location \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2026-03-10" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" \
+            --output /tmp/hotfix-package-lock.zip
+          rm -rf /tmp/hotfix-package-lock
+          mkdir -p /tmp/hotfix-package-lock
+          unzip -q /tmp/hotfix-package-lock.zip -d /tmp/hotfix-package-lock
+          cp /tmp/hotfix-package-lock/package-lock.json package-lock.json
+
+      - name: Commit only generated lockfile and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/hotfix-lockfile-generator.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json .github/workflows/hotfix-lockfile-generator.yml
+          git diff --cached --check
+          git commit -m "lock nodemon development dependency"
+          git push origin HEAD:agent/aws-prefix-nodemon-hotfix
