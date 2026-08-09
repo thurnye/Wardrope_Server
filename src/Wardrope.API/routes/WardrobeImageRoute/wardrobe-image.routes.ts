@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { Router } from 'express';
 import { rateLimit } from 'express-rate-limit';
-import multer, { MulterError } from 'multer';
+import multer from 'multer';
 import type { IAuthService } from '../../../Wardrope.Core/services/ServicesInterface/Auth/auth.service.interface';
 import type { IWardrobeService } from '../../../Wardrope.Core/services/ServicesInterface/Wardrobe/wardrobe.service.interface';
 import type { IWardrobeImageService } from '../../../Wardrope.Core/services/ServicesInterface/WardrobeImage/wardrobe-image.service.interface';
@@ -32,7 +32,7 @@ function uploadSingleImage(req: Request, res: Response, next: NextFunction) {
       return;
     }
 
-    if (error instanceof MulterError) {
+    if (error instanceof multer.MulterError) {
       const tooLarge = error.code === 'LIMIT_FILE_SIZE';
       res.status(tooLarge ? 413 : 400).json({
         success: false,
