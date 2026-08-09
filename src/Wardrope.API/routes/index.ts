@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import type { IAuthService } from '../../Wardrope.Core/services/ServicesInterface/Auth/auth.service.interface';
 import type { IHealthService } from '../../Wardrope.Core/services/ServicesInterface/Health/health.service.interface';
-import type { IWardropeService } from '../../Wardrope.Core/services/ServicesInterface/Wardrobe/wardrobe.service.interface';
-import type { IWardropeImageService } from '../../Wardrope.Core/services/ServicesInterface/WardrobeImage/wardrobe-image.service.interface';
+import type { IWardrobeService } from '../../Wardrope.Core/services/ServicesInterface/Wardrobe/wardrobe.service.interface';
+import type { IWardrobeImageService } from '../../Wardrope.Core/services/ServicesInterface/WardrobeImage/wardrobe-image.service.interface';
 import { createAuthRoutes } from './AuthRoute/auth.routes';
 import { createHealthRoutes } from './HealthRoute/health.routes';
 import { createWardrobeRoutes } from './WardrobeRoute/wardrobe.routes';
