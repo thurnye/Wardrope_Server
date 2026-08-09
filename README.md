@@ -9,6 +9,7 @@ Wardrope Server is the Node.js + Express + TypeScript backend for Wardrope. It u
 - MongoDB native driver
 - Zod environment/request validation
 - Helmet + explicit CORS + rate limiting
+- Node crypto for scrypt password hashing and secure session tokens
 - Vitest + Supertest
 
 ## Getting started
@@ -22,14 +23,29 @@ npm run dev
 
 A local MongoDB connection is required to run the API outside the test environment. The default API root is `http://localhost:4000/api/v1`.
 
-Health endpoints:
+## Implemented endpoints
+
+Health:
 
 ```text
-GET /api/v1/health
-GET /api/v1/health/readiness
+GET  /api/v1/health
+GET  /api/v1/health/readiness
+```
+
+Authentication:
+
+```text
+POST /api/v1/auth/register
+POST /api/v1/auth/login
+GET  /api/v1/auth/session
+POST /api/v1/auth/logout
 ```
 
 `/health` reports process liveness. `/health/readiness` returns `503` until required dependencies are ready.
+
+Authentication uses a host-only `HttpOnly` session cookie. The raw session token is never returned in JSON and only a SHA-256 hash is persisted. `GET /auth/session` returns the current public user plus a rotated CSRF token when authenticated. Authenticated state-changing browser requests must send that token in `X-CSRF-Token`.
+
+Registration does not automatically create a session; the user signs in after account creation. This avoids making user creation and session creation an artificial cross-collection transaction in the MVP.
 
 ## Quality checks
 
@@ -57,9 +73,9 @@ Image flow:
 
 AWS, database, AI, weather, signing and other privileged credentials are server-only.
 
-## Current implemented slice
+## Implemented slices
 
-The initial foundation contains:
+### Foundation
 
 - validated runtime configuration and MongoDB connection lifecycle;
 - Moose-style Health API/Core/DB layers;
@@ -69,5 +85,19 @@ The initial foundation contains:
 - graceful bounded shutdown;
 - HTTP tests for healthy/unready behavior, headers, CORS, request-ID validation, oversized payloads and unknown routes;
 - CI type-check, test, build and production dependency audit gates.
+
+### Authentication
+
+- validated registration and login requests;
+- unique normalized-email persistence constraint;
+- salted scrypt password hashing with timing-safe verification;
+- dummy password verification for unknown accounts and equalized duplicate-registration hashing work;
+- random server-managed session tokens stored only as hashes in MongoDB;
+- MongoDB TTL expiry for sessions;
+- `HttpOnly`, `SameSite=Lax` session cookies and production `__Host-` prefix;
+- CSRF token rotation and enforcement;
+- trusted browser-Origin enforcement for auth writes;
+- dedicated register/login rate limits;
+- HTTP and crypto tests covering the important happy and abuse paths.
 
 Feature endpoints are added only when their complete controller, Core service, repository/provider behavior, authorization and failure-path tests are ready. We do not publish placeholder routes.
