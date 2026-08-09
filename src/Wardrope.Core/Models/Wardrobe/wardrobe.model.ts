@@ -44,6 +44,7 @@ export interface WardrobeItemDto {
   pattern: WardrobePattern | null;
   size: string | null;
   favorite: boolean;
+  sourceUrl: string | null;
   image: WardrobeImageDto | null;
   createdAt: string;
   updatedAt: string;
@@ -59,6 +60,7 @@ export interface CreateWardrobeItemDto {
   pattern?: WardrobePattern | null | undefined;
   size?: string | null | undefined;
   favorite?: boolean | undefined;
+  sourceUrl?: string | null | undefined;
 }
 
 export interface UpdateWardrobeItemDto {
@@ -71,6 +73,18 @@ export interface UpdateWardrobeItemDto {
   pattern?: WardrobePattern | null | undefined;
   size?: string | null | undefined;
   favorite?: boolean | undefined;
+  sourceUrl?: string | null | undefined;
+}
+
+export interface ProductImportPreviewDto {
+  sourceUrl: string;
+  name: string | null;
+  brand: string | null;
+  colors: string[];
+  materials: string[];
+  suggestedCategory: WardrobeCategory | null;
+  suggestedSubcategory: string | null;
+  imageAvailable: boolean;
 }
 
 export interface WardrobeListQueryDto {
