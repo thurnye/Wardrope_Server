@@ -24,20 +24,20 @@ function validationFields(error: ZodError) {
   return { fields: error.issues.map((issue) => ({ field: issue.path.join('.'), message: issue.message })) };
 }
 
-function outfitMutationError(controller: BaseApiController, res: Response, result: Exclude<OutfitMutationResult, { ok: true }>) {
+function outfitError(result: Exclude<OutfitMutationResult, { ok: true }>) {
   switch (result.reason) {
-    case 'NOT_FOUND': return controller.errorResponse(res, 404, 'OUTFIT_NOT_FOUND', 'Outfit was not found.');
-    case 'WARDROBE_ITEM_NOT_FOUND': return controller.errorResponse(res, 400, 'OUTFIT_WARDROBE_ITEM_NOT_FOUND', 'One or more wardrobe items are unavailable for this outfit.');
-    case 'FRAGRANCE_NOT_FOUND': return controller.errorResponse(res, 400, 'OUTFIT_FRAGRANCE_NOT_FOUND', 'The selected fragrance is unavailable.');
+    case 'NOT_FOUND': return { status: 404, code: 'OUTFIT_NOT_FOUND', message: 'Outfit was not found.' } as const;
+    case 'WARDROBE_ITEM_NOT_FOUND': return { status: 400, code: 'OUTFIT_WARDROBE_ITEM_NOT_FOUND', message: 'One or more wardrobe items are unavailable for this outfit.' } as const;
+    case 'FRAGRANCE_NOT_FOUND': return { status: 400, code: 'OUTFIT_FRAGRANCE_NOT_FOUND', message: 'The selected fragrance is unavailable.' } as const;
   }
 }
 
-function wearMutationError(controller: BaseApiController, res: Response, result: Exclude<WearHistoryMutationResult, { ok: true }>) {
+function wearError(result: Exclude<WearHistoryMutationResult, { ok: true }>) {
   switch (result.reason) {
-    case 'NOT_FOUND': return controller.errorResponse(res, 404, 'WEAR_HISTORY_NOT_FOUND', 'Wear history entry was not found.');
-    case 'WARDROBE_ITEM_NOT_FOUND': return controller.errorResponse(res, 400, 'WEAR_HISTORY_WARDROBE_ITEM_NOT_FOUND', 'One or more wardrobe items are unavailable.');
-    case 'FRAGRANCE_NOT_FOUND': return controller.errorResponse(res, 400, 'WEAR_HISTORY_FRAGRANCE_NOT_FOUND', 'The selected fragrance is unavailable.');
-    case 'OUTFIT_NOT_FOUND': return controller.errorResponse(res, 404, 'OUTFIT_NOT_FOUND', 'Outfit was not found.');
+    case 'NOT_FOUND': return { status: 404, code: 'WEAR_HISTORY_NOT_FOUND', message: 'Wear history entry was not found.' } as const;
+    case 'WARDROBE_ITEM_NOT_FOUND': return { status: 400, code: 'WEAR_HISTORY_WARDROBE_ITEM_NOT_FOUND', message: 'One or more wardrobe items are unavailable.' } as const;
+    case 'FRAGRANCE_NOT_FOUND': return { status: 400, code: 'WEAR_HISTORY_FRAGRANCE_NOT_FOUND', message: 'The selected fragrance is unavailable.' } as const;
+    case 'OUTFIT_NOT_FOUND': return { status: 404, code: 'OUTFIT_NOT_FOUND', message: 'Outfit was not found.' } as const;
   }
 }
 
@@ -56,7 +56,9 @@ export class OutfitController extends BaseApiController {
     if (!parsed.success) return this.errorResponse(res, 400, 'VALIDATION_ERROR', 'Please correct the outfit details.', validationFields(parsed.error));
     const { user } = getAuthenticatedContext(res);
     const result = await this.service.create(user.id, parsed.data);
-    return result.ok ? this.okResponse(res, result.outfit, 201) : outfitMutationError(this, res, result);
+    if (result.ok) return this.okResponse(res, result.outfit, 201);
+    const error = outfitError(result);
+    return this.errorResponse(res, error.status, error.code, error.message);
   };
 
   getById = async (req: Request, res: Response) => {
@@ -73,7 +75,9 @@ export class OutfitController extends BaseApiController {
     if (!params.success || !body.success) return this.errorResponse(res, 400, 'VALIDATION_ERROR', 'Please correct the outfit update.', body.success ? undefined : validationFields(body.error));
     const { user } = getAuthenticatedContext(res);
     const result = await this.service.update(user.id, params.data.outfitId, body.data);
-    return result.ok ? this.okResponse(res, result.outfit) : outfitMutationError(this, res, result);
+    if (result.ok) return this.okResponse(res, result.outfit);
+    const error = outfitError(result);
+    return this.errorResponse(res, error.status, error.code, error.message);
   };
 
   delete = async (req: Request, res: Response) => {
@@ -101,7 +105,9 @@ export class WearHistoryController extends BaseApiController {
     if (!parsed.success) return this.errorResponse(res, 400, 'VALIDATION_ERROR', 'Please correct the wear history details.', validationFields(parsed.error));
     const { user } = getAuthenticatedContext(res);
     const result = await this.service.create(user.id, parsed.data);
-    return result.ok ? this.okResponse(res, result.entry, 201) : wearMutationError(this, res, result);
+    if (result.ok) return this.okResponse(res, result.entry, 201);
+    const error = wearError(result);
+    return this.errorResponse(res, error.status, error.code, error.message);
   };
 
   recordOutfitWear = async (req: Request, res: Response) => {
@@ -118,7 +124,9 @@ export class WearHistoryController extends BaseApiController {
     }
     const { user } = getAuthenticatedContext(res);
     const result = await this.service.recordOutfitWear(user.id, params.data.outfitId, body.data.wornAt);
-    return result.ok ? this.okResponse(res, result.entry, 201) : wearMutationError(this, res, result);
+    if (result.ok) return this.okResponse(res, result.entry, 201);
+    const error = wearError(result);
+    return this.errorResponse(res, error.status, error.code, error.message);
   };
 
   getById = async (req: Request, res: Response) => {
@@ -135,7 +143,9 @@ export class WearHistoryController extends BaseApiController {
     if (!params.success || !body.success) return this.errorResponse(res, 400, 'VALIDATION_ERROR', 'Please correct the wear history update.', body.success ? undefined : validationFields(body.error));
     const { user } = getAuthenticatedContext(res);
     const result = await this.service.update(user.id, params.data.historyId, body.data);
-    return result.ok ? this.okResponse(res, result.entry) : wearMutationError(this, res, result);
+    if (result.ok) return this.okResponse(res, result.entry);
+    const error = wearError(result);
+    return this.errorResponse(res, error.status, error.code, error.message);
   };
 
   delete = async (req: Request, res: Response) => {
