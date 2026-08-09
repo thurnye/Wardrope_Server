@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import type { AuthenticatedRequestContext } from '../../Wardrope.Core/Models/Auth/auth.model';
 import type { IAuthService } from '../../Wardrope.Core/services/ServicesInterface/Auth/auth.service.interface';
 import type { ApiResponse } from '../models/api-response';
-import { clearSessionCookie, readSessionCookie } from '../utils/auth-cookie';
+import { clearAuthCookies, readSessionCookie } from '../utils/auth-cookie';
 
 export const AUTH_CONTEXT_LOCAL_KEY = 'authContext';
 
@@ -26,7 +26,7 @@ export function createAuthenticationMiddleware(authService: IAuthService) {
 
     if (!context) {
       if (sessionToken) {
-        clearSessionCookie(res);
+        clearAuthCookies(res);
       }
       return unauthorized(res);
     }
