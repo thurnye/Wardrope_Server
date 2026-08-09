@@ -5,11 +5,13 @@ import type {
   WardrobeListDto,
   WardrobeListQueryDto,
 } from '../../../Models/Wardrobe/wardrobe.model';
+import { toWardrobeItemDto } from '../../../mappers/Wardrobe/wardrobe.mapper';
 import type {
   IWardrobeRepository,
-  WardrobeItemRecord,
   WardrobeRepositoryQuery,
 } from '../../../../Wardrope.DB/repositories/RepositoryInterface/Wardrobe/wardrobe.repository.interface';
+import type { IApplicationLogger } from '../../ServicesInterface/Logging/application-logger.service.interface';
+import type { IFileStorageService } from '../../ServicesInterface/Storage/file-storage.service.interface';
 import type { IWardrobeService } from '../../ServicesInterface/Wardrobe/wardrobe.service.interface';
 
 function normalizeText(value: string): string {
@@ -35,23 +37,6 @@ function normalizeList(values: string[]): string[] {
   }
 
   return normalized;
-}
-
-function toDto(record: WardrobeItemRecord): WardrobeItemDto {
-  return {
-    id: record.id,
-    name: record.name,
-    category: record.category,
-    subcategory: record.subcategory,
-    brand: record.brand,
-    colors: [...record.colors],
-    materials: [...record.materials],
-    pattern: record.pattern,
-    size: record.size,
-    favorite: record.favorite,
-    createdAt: record.createdAt.toISOString(),
-    updatedAt: record.updatedAt.toISOString(),
-  };
 }
 
 function normalizeCreate(input: CreateWardrobeItemDto): CreateWardrobeItemDto {
@@ -85,10 +70,14 @@ function normalizeUpdate(input: UpdateWardrobeItemDto): UpdateWardrobeItemDto {
 }
 
 export class WardrobeService implements IWardrobeService {
-  constructor(private readonly wardrobeRepository: IWardrobeRepository) {}
+  constructor(
+    private readonly wardrobeRepository: IWardrobeRepository,
+    private readonly fileStorage: IFileStorageService,
+    private readonly logger: IApplicationLogger,
+  ) {}
 
   async create(userId: string, input: CreateWardrobeItemDto): Promise<WardrobeItemDto> {
-    return toDto(await this.wardrobeRepository.create(userId, normalizeCreate(input)));
+    return toWardrobeItemDto(await this.wardrobeRepository.create(userId, normalizeCreate(input)));
   }
 
   async list(userId: string, query: WardrobeListQueryDto): Promise<WardrobeListDto> {
@@ -104,7 +93,7 @@ export class WardrobeService implements IWardrobeService {
     const result = await this.wardrobeRepository.list(userId, repositoryQuery);
 
     return {
-      items: result.items.map(toDto),
+      items: result.items.map(toWardrobeItemDto),
       pagination: {
         page: query.page,
         pageSize: query.pageSize,
@@ -116,7 +105,7 @@ export class WardrobeService implements IWardrobeService {
 
   async getById(userId: string, itemId: string): Promise<WardrobeItemDto | null> {
     const item = await this.wardrobeRepository.findById(userId, itemId);
-    return item ? toDto(item) : null;
+    return item ? toWardrobeItemDto(item) : null;
   }
 
   async update(
@@ -125,10 +114,26 @@ export class WardrobeService implements IWardrobeService {
     input: UpdateWardrobeItemDto,
   ): Promise<WardrobeItemDto | null> {
     const item = await this.wardrobeRepository.update(userId, itemId, normalizeUpdate(input));
-    return item ? toDto(item) : null;
+    return item ? toWardrobeItemDto(item) : null;
   }
 
-  delete(userId: string, itemId: string): Promise<boolean> {
-    return this.wardrobeRepository.delete(userId, itemId);
+  async delete(userId: string, itemId: string): Promise<boolean> {
+    const deleted = await this.wardrobeRepository.delete(userId, itemId);
+
+    if (!deleted) {
+      return false;
+    }
+
+    if (deleted.image) {
+      try {
+        await this.fileStorage.deletePrivateFile(deleted.image.objectKey);
+      } catch {
+        this.logger.warn('wardrobe_image_cleanup_after_item_delete_failed', {
+          itemId: deleted.id,
+        });
+      }
+    }
+
+    return true;
   }
 }
