@@ -109,6 +109,14 @@ function buildAuthApp() {
   return createApp(createApiRouter(healthService, authService));
 }
 
+function asHeaderList(value: string | string[] | undefined): string[] {
+  if (!value) {
+    return [];
+  }
+
+  return Array.isArray(value) ? value : [value];
+}
+
 const validAccount = {
   email: 'daniel@example.com',
   password: 'a-secure-passphrase-2026',
@@ -220,9 +228,9 @@ describe('Wardrope authentication API', () => {
       .send({ email: validAccount.email, password: validAccount.password })
       .expect(200);
 
-    const cookies = login.headers['set-cookie'] ?? [];
-    const sessionCookie = cookies.find((cookie: string) => cookie.startsWith('wardrope_session=')) ?? '';
-    const csrfCookie = cookies.find((cookie: string) => cookie.startsWith('wardrope_csrf=')) ?? '';
+    const cookies = asHeaderList(login.headers['set-cookie']);
+    const sessionCookie = cookies.find((cookie) => cookie.startsWith('wardrope_session=')) ?? '';
+    const csrfCookie = cookies.find((cookie) => cookie.startsWith('wardrope_csrf=')) ?? '';
     expect(sessionCookie).toContain('HttpOnly');
     expect(sessionCookie).toContain('SameSite=Lax');
     expect(csrfCookie).toContain('SameSite=Lax');
@@ -251,9 +259,9 @@ describe('Wardrope authentication API', () => {
       .set('X-CSRF-Token', bootstrap.body.data.csrfToken)
       .expect(200);
     expect(logout.body.data.loggedOut).toBe(true);
-    const clearedCookies = logout.headers['set-cookie'] ?? [];
-    expect(clearedCookies.some((cookie: string) => /wardrope_session=;/.test(cookie))).toBe(true);
-    expect(clearedCookies.some((cookie: string) => /wardrope_csrf=;/.test(cookie))).toBe(true);
+    const clearedCookies = asHeaderList(logout.headers['set-cookie']);
+    expect(clearedCookies.some((cookie) => /wardrope_session=;/.test(cookie))).toBe(true);
+    expect(clearedCookies.some((cookie) => /wardrope_csrf=;/.test(cookie))).toBe(true);
 
     const afterLogout = await agent
       .get('/api/v1/auth/session')
@@ -301,8 +309,8 @@ describe('Wardrope authentication API', () => {
       .expect(200);
 
     expect(response.body.data).toEqual({ authenticated: false });
-    const clearedCookies = response.headers['set-cookie'] ?? [];
-    expect(clearedCookies.some((cookie: string) => /wardrope_session=;/.test(cookie))).toBe(true);
-    expect(clearedCookies.some((cookie: string) => /wardrope_csrf=;/.test(cookie))).toBe(true);
+    const clearedCookies = asHeaderList(response.headers['set-cookie']);
+    expect(clearedCookies.some((cookie) => /wardrope_session=;/.test(cookie))).toBe(true);
+    expect(clearedCookies.some((cookie) => /wardrope_csrf=;/.test(cookie))).toBe(true);
   });
 });
