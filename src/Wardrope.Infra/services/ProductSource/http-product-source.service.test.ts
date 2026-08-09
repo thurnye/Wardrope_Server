@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { ProductSourceError } from '../../../Wardrope.Core/services/ServicesInterface/ProductSource/product-source.service.interface';
 import { HttpProductSourceService } from './http-product-source.service';
 
 async function expectBlocked(url: string) {
   const service = new HttpProductSourceService();
-  await expect(service.inspect(url)).rejects.toMatchObject<ProductSourceError>({
+  await expect(service.inspect(url)).rejects.toMatchObject({
     reason: 'URL_NOT_ALLOWED',
   });
 }
