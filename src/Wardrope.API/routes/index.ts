@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import type { IAuthService } from '../../Wardrope.Core/services/ServicesInterface/Auth/auth.service.interface';
+import type { IFragranceService } from '../../Wardrope.Core/services/ServicesInterface/Fragrance/fragrance.service.interface';
+import type { IFragranceImageService } from '../../Wardrope.Core/services/ServicesInterface/FragranceImage/fragrance-image.service.interface';
 import type { IHealthService } from '../../Wardrope.Core/services/ServicesInterface/Health/health.service.interface';
 import type { IPhysicalProfileService } from '../../Wardrope.Core/services/ServicesInterface/PhysicalProfile/physical-profile.service.interface';
 import type { IPreferencesService } from '../../Wardrope.Core/services/ServicesInterface/Preferences/preferences.service.interface';
@@ -8,6 +10,8 @@ import type { IWardrobeService } from '../../Wardrope.Core/services/ServicesInte
 import type { IWardrobeImageService } from '../../Wardrope.Core/services/ServicesInterface/WardrobeImage/wardrobe-image.service.interface';
 import type { IWeatherService } from '../../Wardrope.Core/services/ServicesInterface/Weather/weather.service.interface';
 import { createAuthRoutes } from './AuthRoute/auth.routes';
+import { createFragranceRoutes } from './FragranceRoute/fragrance.routes';
+import { createFragranceImageRoutes } from './FragranceImageRoute/fragrance-image.routes';
 import { createHealthRoutes } from './HealthRoute/health.routes';
 import { createPhysicalProfileRoutes } from './PhysicalProfileRoute/physical-profile.routes';
 import { createPreferencesRoutes } from './PreferencesRoute/preferences.routes';
@@ -25,6 +29,8 @@ export function createApiRouter(
   productImportService?: IProductImportService,
   preferencesService?: IPreferencesService,
   weatherService?: IWeatherService,
+  fragranceService?: IFragranceService,
+  fragranceImageService?: IFragranceImageService,
 ): Router {
   if (!physicalProfileService && process.env.NODE_ENV !== 'test') {
     throw new Error('Physical Profile service is required to create the Wardrope API router.');
@@ -38,30 +44,23 @@ export function createApiRouter(
   if (!weatherService && process.env.NODE_ENV !== 'test') {
     throw new Error('Weather service is required to create the Wardrope API router.');
   }
+  if ((!fragranceService || !fragranceImageService) && process.env.NODE_ENV !== 'test') {
+    throw new Error('Fragrance services are required to create the Wardrope API router.');
+  }
 
   const router = Router();
   router.use('/health', createHealthRoutes(healthService));
   router.use('/auth', createAuthRoutes(authService));
   router.use('/wardrobe', createWardrobeRoutes(wardrobeService, authService));
 
-  if (physicalProfileService) {
-    router.use('/physical-profile', createPhysicalProfileRoutes(physicalProfileService, authService));
-  }
-
-  if (wardrobeImageService) {
-    router.use('/wardrobe', createWardrobeImageRoutes(wardrobeImageService, wardrobeService, authService));
-  }
-
-  if (productImportService) {
-    router.use('/wardrobe', createProductImportRoutes(productImportService, authService));
-  }
-
-  if (preferencesService) {
-    router.use('/preferences', createPreferencesRoutes(preferencesService, authService));
-  }
-
-  if (weatherService) {
-    router.use('/weather', createWeatherRoutes(weatherService, authService));
+  if (physicalProfileService) router.use('/physical-profile', createPhysicalProfileRoutes(physicalProfileService, authService));
+  if (wardrobeImageService) router.use('/wardrobe', createWardrobeImageRoutes(wardrobeImageService, wardrobeService, authService));
+  if (productImportService) router.use('/wardrobe', createProductImportRoutes(productImportService, authService));
+  if (preferencesService) router.use('/preferences', createPreferencesRoutes(preferencesService, authService));
+  if (weatherService) router.use('/weather', createWeatherRoutes(weatherService, authService));
+  if (fragranceService) router.use('/fragrances', createFragranceRoutes(fragranceService, authService));
+  if (fragranceService && fragranceImageService) {
+    router.use('/fragrances', createFragranceImageRoutes(fragranceImageService, fragranceService, authService));
   }
 
   return router;

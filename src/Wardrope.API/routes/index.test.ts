@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { IAuthService } from '../../Wardrope.Core/services/ServicesInterface/Auth/auth.service.interface';
+import type { IFragranceService } from '../../Wardrope.Core/services/ServicesInterface/Fragrance/fragrance.service.interface';
+import type { IFragranceImageService } from '../../Wardrope.Core/services/ServicesInterface/FragranceImage/fragrance-image.service.interface';
 import type { IHealthService } from '../../Wardrope.Core/services/ServicesInterface/Health/health.service.interface';
 import type { IPhysicalProfileService } from '../../Wardrope.Core/services/ServicesInterface/PhysicalProfile/physical-profile.service.interface';
 import type { IPreferencesService } from '../../Wardrope.Core/services/ServicesInterface/Preferences/preferences.service.interface';
@@ -16,11 +18,7 @@ const healthService: IHealthService = {
     timestamp: new Date().toISOString(),
     database: 'connected',
   }),
-  getReadiness: () => ({
-    ready: true,
-    database: 'connected',
-    timestamp: new Date().toISOString(),
-  }),
+  getReadiness: () => ({ ready: true, database: 'connected', timestamp: new Date().toISOString() }),
 };
 
 const authService = {
@@ -34,15 +32,7 @@ const authService = {
 
 const wardrobeService = {
   create: async () => { throw new Error('not used'); },
-  list: async (_userId, query) => ({
-    items: [],
-    pagination: {
-      page: query.page,
-      pageSize: query.pageSize,
-      totalItems: 0,
-      totalPages: 0,
-    },
-  }),
+  list: async (_userId, query) => ({ items: [], pagination: { page: query.page, pageSize: query.pageSize, totalItems: 0, totalPages: 0 } }),
   getById: async () => null,
   update: async () => null,
   delete: async () => false,
@@ -69,11 +59,22 @@ const weatherService: IWeatherService = {
   getContext: async () => ({ ok: false, reason: 'PROVIDER_UNAVAILABLE' }),
 };
 
-const originalNodeEnv = process.env.NODE_ENV;
+const fragranceService: IFragranceService = {
+  create: async () => { throw new Error('not used'); },
+  list: async (_userId, query) => ({ items: [], pagination: { page: query.page, pageSize: query.pageSize, totalItems: 0, totalPages: 0 } }),
+  getById: async () => null,
+  update: async () => null,
+  delete: async () => false,
+};
 
-afterEach(() => {
-  process.env.NODE_ENV = originalNodeEnv;
-});
+const fragranceImageService: IFragranceImageService = {
+  replace: async () => ({ ok: false, reason: 'NOT_FOUND' }),
+  read: async () => ({ ok: false, reason: 'NOT_FOUND' }),
+  remove: async () => ({ ok: false, reason: 'NOT_FOUND' }),
+};
+
+const originalNodeEnv = process.env.NODE_ENV;
+afterEach(() => { process.env.NODE_ENV = originalNodeEnv; });
 
 describe('createApiRouter feature composition', () => {
   it('allows isolated test routers to omit optional feature compositions', () => {
@@ -83,35 +84,25 @@ describe('createApiRouter feature composition', () => {
 
   it('fails closed outside test when Physical Profile is not wired', () => {
     process.env.NODE_ENV = 'production';
-    expect(() => createApiRouter(healthService, authService, wardrobeService)).toThrow(
-      /Physical Profile service is required/i,
-    );
+    expect(() => createApiRouter(healthService, authService, wardrobeService)).toThrow(/Physical Profile service is required/i);
   });
 
   it('fails closed outside test when Product Import is not wired', () => {
     process.env.NODE_ENV = 'production';
-    expect(() => createApiRouter(
-      healthService,
-      authService,
-      wardrobeService,
-      undefined,
-      physicalProfileService,
-    )).toThrow(/Product Import service is required/i);
+    expect(() => createApiRouter(healthService, authService, wardrobeService, undefined, physicalProfileService)).toThrow(/Product Import service is required/i);
   });
 
   it('fails closed outside test when Preferences is not wired', () => {
     process.env.NODE_ENV = 'production';
-    expect(() => createApiRouter(
-      healthService,
-      authService,
-      wardrobeService,
-      undefined,
-      physicalProfileService,
-      productImportService,
-    )).toThrow(/Preferences service is required/i);
+    expect(() => createApiRouter(healthService, authService, wardrobeService, undefined, physicalProfileService, productImportService)).toThrow(/Preferences service is required/i);
   });
 
   it('fails closed outside test when Weather is not wired', () => {
+    process.env.NODE_ENV = 'production';
+    expect(() => createApiRouter(healthService, authService, wardrobeService, undefined, physicalProfileService, productImportService, preferencesService)).toThrow(/Weather service is required/i);
+  });
+
+  it('fails closed outside test when Fragrances are not wired', () => {
     process.env.NODE_ENV = 'production';
     expect(() => createApiRouter(
       healthService,
@@ -121,7 +112,8 @@ describe('createApiRouter feature composition', () => {
       physicalProfileService,
       productImportService,
       preferencesService,
-    )).toThrow(/Weather service is required/i);
+      weatherService,
+    )).toThrow(/Fragrance services are required/i);
   });
 
   it('allows production composition when required features are explicitly supplied', () => {
@@ -135,6 +127,8 @@ describe('createApiRouter feature composition', () => {
       productImportService,
       preferencesService,
       weatherService,
+      fragranceService,
+      fragranceImageService,
     )).not.toThrow();
   });
 });

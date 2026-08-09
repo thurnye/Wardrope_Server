@@ -1,6 +1,8 @@
 import { assertRuntimeConfiguration, env } from '../../config/env';
 import { getImageStorageConfig } from '../../config/image-storage.env';
 import { AuthService } from '../../Wardrope.Core/services/ServicesImplementation/Auth/auth.service';
+import { FragranceService } from '../../Wardrope.Core/services/ServicesImplementation/Fragrance/fragrance.service';
+import { FragranceImageService } from '../../Wardrope.Core/services/ServicesImplementation/FragranceImage/fragrance-image.service';
 import { HealthService } from '../../Wardrope.Core/services/ServicesImplementation/Health/health.service';
 import { PhysicalProfileService } from '../../Wardrope.Core/services/ServicesImplementation/PhysicalProfile/physical-profile.service';
 import { PreferencesService } from '../../Wardrope.Core/services/ServicesImplementation/Preferences/preferences.service';
@@ -10,6 +12,7 @@ import { WardrobeImageService } from '../../Wardrope.Core/services/ServicesImple
 import { WeatherService } from '../../Wardrope.Core/services/ServicesImplementation/Weather/weather.service';
 import { MongoDatabaseConnection } from '../../Wardrope.DB/connection/mongo-database.connection';
 import { AuthRepository } from '../../Wardrope.DB/repositories/RepositoryImplementation/Auth/auth.repository';
+import { FragranceRepository } from '../../Wardrope.DB/repositories/RepositoryImplementation/Fragrance/fragrance.repository';
 import { HealthRepository } from '../../Wardrope.DB/repositories/RepositoryImplementation/Health/health.repository';
 import { PhysicalProfileRepository } from '../../Wardrope.DB/repositories/RepositoryImplementation/PhysicalProfile/physical-profile.repository';
 import { PreferencesRepository } from '../../Wardrope.DB/repositories/RepositoryImplementation/Preferences/preferences.repository';
@@ -30,13 +33,8 @@ export interface ApplicationRuntime {
 
 export async function createApplicationRuntime(): Promise<ApplicationRuntime> {
   assertRuntimeConfiguration();
-
-  if (!env.mongoUri) {
-    throw new Error('MongoDB configuration is required to create the application runtime.');
-  }
-  if (!env.weatherApiKey) {
-    throw new Error('Weather provider configuration is required to create the application runtime.');
-  }
+  if (!env.mongoUri) throw new Error('MongoDB configuration is required to create the application runtime.');
+  if (!env.weatherApiKey) throw new Error('Weather provider configuration is required to create the application runtime.');
 
   const imageStorage = getImageStorageConfig();
   const database = new MongoDatabaseConnection(env.mongoUri, env.mongoDbName);
@@ -47,11 +45,13 @@ export async function createApplicationRuntime(): Promise<ApplicationRuntime> {
   const wardrobeRepository = new WardrobeRepository(database);
   const physicalProfileRepository = new PhysicalProfileRepository(database);
   const preferencesRepository = new PreferencesRepository(database);
+  const fragranceRepository = new FragranceRepository(database);
   await Promise.all([
     authRepository.ensureIndexes(),
     wardrobeRepository.ensureIndexes(),
     physicalProfileRepository.ensureIndexes(),
     preferencesRepository.ensureIndexes(),
+    fragranceRepository.ensureIndexes(),
   ]);
 
   const logger = new ConsoleApplicationLogger();
@@ -62,32 +62,15 @@ export async function createApplicationRuntime(): Promise<ApplicationRuntime> {
   const passwordHasher = new ScryptPasswordHasher();
   const tokenService = new SecurityTokenService();
   const healthService = new HealthService(healthRepository);
-  const authService = new AuthService(
-    authRepository,
-    passwordHasher,
-    tokenService,
-    env.authSessionTtlMs,
-  );
-  const wardrobeService = new WardrobeService(wardrobeRepository, {
-    repository: wardrobeRepository,
-    fileStorage,
-    logger,
-  });
+  const authService = new AuthService(authRepository, passwordHasher, tokenService, env.authSessionTtlMs);
+  const wardrobeService = new WardrobeService(wardrobeRepository, { repository: wardrobeRepository, fileStorage, logger });
   const physicalProfileService = new PhysicalProfileService(physicalProfileRepository);
   const preferencesService = new PreferencesService(preferencesRepository);
   const weatherService = new WeatherService(weatherSourceService, logger);
-  const wardrobeImageService = new WardrobeImageService(
-    wardrobeRepository,
-    wardrobeRepository,
-    imageProcessing,
-    fileStorage,
-    logger,
-  );
-  const productImportService = new ProductImportService(
-    wardrobeRepository,
-    wardrobeImageService,
-    productSourceService,
-  );
+  const fragranceService = new FragranceService(fragranceRepository, fileStorage, logger);
+  const fragranceImageService = new FragranceImageService(fragranceRepository, imageProcessing, fileStorage, logger);
+  const wardrobeImageService = new WardrobeImageService(wardrobeRepository, wardrobeRepository, imageProcessing, fileStorage, logger);
+  const productImportService = new ProductImportService(wardrobeRepository, wardrobeImageService, productSourceService);
 
   return {
     apiRouter: createApiRouter(
@@ -99,6 +82,8 @@ export async function createApplicationRuntime(): Promise<ApplicationRuntime> {
       productImportService,
       preferencesService,
       weatherService,
+      fragranceService,
+      fragranceImageService,
     ),
     async shutdown() {
       fileStorage.shutdown();
