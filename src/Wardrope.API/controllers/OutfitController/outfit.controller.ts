@@ -12,6 +12,7 @@ import {
   createWearHistoryBodySchema,
   outfitIdParamsSchema,
   outfitListQuerySchema,
+  recordOutfitWearBodySchema,
   updateOutfitBodySchema,
   updateWearHistoryBodySchema,
   wearHistoryIdParamsSchema,
@@ -36,7 +37,7 @@ function wearMutationError(controller: BaseApiController, res: Response, result:
     case 'NOT_FOUND': return controller.errorResponse(res, 404, 'WEAR_HISTORY_NOT_FOUND', 'Wear history entry was not found.');
     case 'WARDROBE_ITEM_NOT_FOUND': return controller.errorResponse(res, 400, 'WEAR_HISTORY_WARDROBE_ITEM_NOT_FOUND', 'One or more wardrobe items are unavailable.');
     case 'FRAGRANCE_NOT_FOUND': return controller.errorResponse(res, 400, 'WEAR_HISTORY_FRAGRANCE_NOT_FOUND', 'The selected fragrance is unavailable.');
-    case 'OUTFIT_NOT_FOUND': return controller.errorResponse(res, 400, 'WEAR_HISTORY_OUTFIT_NOT_FOUND', 'The source outfit is unavailable.');
+    case 'OUTFIT_NOT_FOUND': return controller.errorResponse(res, 404, 'OUTFIT_NOT_FOUND', 'Outfit was not found.');
   }
 }
 
@@ -100,6 +101,23 @@ export class WearHistoryController extends BaseApiController {
     if (!parsed.success) return this.errorResponse(res, 400, 'VALIDATION_ERROR', 'Please correct the wear history details.', validationFields(parsed.error));
     const { user } = getAuthenticatedContext(res);
     const result = await this.service.create(user.id, parsed.data);
+    return result.ok ? this.okResponse(res, result.entry, 201) : wearMutationError(this, res, result);
+  };
+
+  recordOutfitWear = async (req: Request, res: Response) => {
+    const params = outfitIdParamsSchema.safeParse(req.params);
+    const body = recordOutfitWearBodySchema.safeParse(req.body);
+    if (!params.success || !body.success) {
+      return this.errorResponse(
+        res,
+        400,
+        'VALIDATION_ERROR',
+        'Please provide a valid outfit and wear time.',
+        body.success ? undefined : validationFields(body.error),
+      );
+    }
+    const { user } = getAuthenticatedContext(res);
+    const result = await this.service.recordOutfitWear(user.id, params.data.outfitId, body.data.wornAt);
     return result.ok ? this.okResponse(res, result.entry, 201) : wearMutationError(this, res, result);
   };
 
