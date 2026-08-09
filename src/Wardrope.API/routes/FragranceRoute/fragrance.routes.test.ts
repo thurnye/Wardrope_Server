@@ -99,7 +99,24 @@ class FakeFragranceRepository implements IFragranceRepository {
   async update(userId: string, fragranceId: string, input: Parameters<IFragranceRepository['update']>[2]) {
     const current = await this.findById(userId, fragranceId);
     if (!current) return null;
-    const updated: FragranceRecord = { ...current, ...input, updatedAt: new Date('2026-08-09T16:00:00.000Z') };
+    const updated: FragranceRecord = {
+      ...current,
+      keyNotes: [...current.keyNotes],
+      purchasePrice: current.purchasePrice ? { ...current.purchasePrice } : null,
+      updatedAt: new Date('2026-08-09T16:00:00.000Z'),
+    };
+    if (input.brand !== undefined) updated.brand = input.brand;
+    if (input.name !== undefined) updated.name = input.name;
+    if (input.productLine !== undefined) updated.productLine = input.productLine;
+    if (input.concentration !== undefined) updated.concentration = input.concentration;
+    if (input.fragranceFamily !== undefined) updated.fragranceFamily = input.fragranceFamily;
+    if (input.scentType !== undefined) updated.scentType = input.scentType;
+    if (input.keyNotes !== undefined) updated.keyNotes = [...input.keyNotes];
+    if (input.bottleSizeMl !== undefined) updated.bottleSizeMl = input.bottleSizeMl;
+    if (input.amountRemainingPercent !== undefined) updated.amountRemainingPercent = input.amountRemainingPercent;
+    if (input.purchaseDate !== undefined) updated.purchaseDate = input.purchaseDate;
+    if (input.purchasePrice !== undefined) updated.purchasePrice = input.purchasePrice ? { ...input.purchasePrice } : null;
+    if (input.available !== undefined) updated.available = input.available;
     this.records.set(`${userId}:${fragranceId}`, updated);
     return updated;
   }
