@@ -45,7 +45,7 @@ POST /api/v1/auth/logout
 
 Authentication uses a host-only `HttpOnly` session cookie. The raw session token is never returned in JSON and only a SHA-256 hash is persisted. Login also issues a separate same-site CSRF cookie bound to the session's server-side CSRF hash. `GET /auth/session` returns the current public user and the same valid CSRF token when possible; it replaces the token only if the CSRF cookie is missing or invalid. Authenticated state-changing browser requests must send the token in `X-CSRF-Token`.
 
-Registration does not automatically create a session; the user signs in after account creation. This avoids making user creation and session creation an artificial cross-collection transaction in the MVP.
+Registration does not automatically create a session. For a valid registration payload, the API deliberately returns the same `201` acceptance response whether the normalized email is newly created or already unavailable. That prevents the registration endpoint from exposing account existence through status codes or response bodies. The user continues by signing in, where invalid credentials are also returned generically.
 
 ## Quality checks
 
@@ -80,15 +80,17 @@ AWS, database, AI, weather, signing and other privileged credentials are server-
 - validated runtime configuration and MongoDB connection lifecycle;
 - Moose-style Health API/Core/DB layers;
 - centralized request IDs, Helmet, explicit credentialed CORS, request-size limits and rate limiting;
+- globally enforced trusted browser origins;
 - sanitized 404/error responses and production-safe error logging;
 - separate liveness/readiness endpoints;
 - graceful bounded shutdown;
-- HTTP tests for healthy/unready behavior, headers, CORS, request-ID validation, oversized payloads and unknown routes;
+- HTTP tests for healthy/unready behavior, headers, CORS/origin policy, request-ID validation, oversized payloads and unknown routes;
 - CI type-check, test, build and production dependency audit gates.
 
 ### Authentication
 
 - validated registration and login requests;
+- identical accepted registration response for new and duplicate normalized emails;
 - unique normalized-email persistence constraint;
 - salted scrypt password hashing with timing-safe verification;
 - dummy password verification for unknown accounts and equalized duplicate-registration hashing work;
@@ -96,7 +98,7 @@ AWS, database, AI, weather, signing and other privileged credentials are server-
 - MongoDB TTL expiry for sessions;
 - `HttpOnly`, `SameSite=Lax` session cookies and production `__Host-` prefix;
 - same-site CSRF cookie bound to a server-side CSRF hash, plus header enforcement for authenticated writes;
-- trusted browser-Origin enforcement for auth endpoints, including session bootstrap;
+- stable CSRF bootstrap across browser refreshes/tabs without unnecessary cookie mutation;
 - dedicated register/login rate limits;
 - HTTP and crypto tests covering the important happy and abuse paths.
 
