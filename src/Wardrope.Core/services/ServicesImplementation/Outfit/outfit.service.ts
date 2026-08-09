@@ -139,16 +139,27 @@ export class WearHistoryService implements IWearHistoryService {
     if (!await validateFragrance(this.fragranceService, userId, input.fragranceId)) {
       return { ok: false, reason: 'FRAGRANCE_NOT_FOUND' };
     }
-    if (input.sourceOutfitId && !await this.outfitRepository.findById(userId, input.sourceOutfitId)) {
-      return { ok: false, reason: 'OUTFIT_NOT_FOUND' };
-    }
 
     const entry = await this.repository.create(userId, {
       wornAt: new Date(input.wornAt).toISOString(),
       wardrobeItemIds,
       fragranceId: input.fragranceId ?? null,
-      sourceOutfitId: input.sourceOutfitId ?? null,
-      source: input.source ?? 'manual',
+      sourceOutfitId: null,
+      source: 'manual',
+    });
+    return { ok: true, entry: toWearHistoryDto(entry) };
+  }
+
+  async recordOutfitWear(userId: string, outfitId: string, wornAt: string): Promise<WearHistoryMutationResult> {
+    const outfit = await this.outfitRepository.findById(userId, outfitId);
+    if (!outfit) return { ok: false, reason: 'OUTFIT_NOT_FOUND' };
+
+    const entry = await this.repository.create(userId, {
+      wornAt: new Date(wornAt).toISOString(),
+      wardrobeItemIds: [...outfit.wardrobeItemIds],
+      fragranceId: outfit.fragranceId,
+      sourceOutfitId: outfit.id,
+      source: 'saved-outfit',
     });
     return { ok: true, entry: toWearHistoryDto(entry) };
   }
@@ -194,13 +205,6 @@ export class WearHistoryService implements IWearHistoryService {
         return { ok: false, reason: 'FRAGRANCE_NOT_FOUND' };
       }
     }
-    if (input.sourceOutfitId !== undefined) {
-      normalized.sourceOutfitId = input.sourceOutfitId;
-      if (input.sourceOutfitId && !await this.outfitRepository.findById(userId, input.sourceOutfitId)) {
-        return { ok: false, reason: 'OUTFIT_NOT_FOUND' };
-      }
-    }
-    if (input.source !== undefined) normalized.source = input.source;
 
     const entry = await this.repository.update(userId, historyId, normalized);
     return entry ? { ok: true, entry: toWearHistoryDto(entry) } : { ok: false, reason: 'NOT_FOUND' };
