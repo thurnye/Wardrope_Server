@@ -82,13 +82,14 @@ describe('Wardrope health API', () => {
     expect(response.body.data.database).toBe('connected');
   });
 
-  it('does not grant browser CORS access to an unapproved origin', async () => {
+  it('rejects browser API access from an unapproved origin', async () => {
     const response = await request(buildTestApp('connected'))
       .get('/api/v1/health')
       .set('Origin', 'https://attacker.example')
-      .expect(200);
+      .expect(403);
 
     expect(response.headers['access-control-allow-origin']).toBeUndefined();
+    expect(response.body.error.code).toBe('ORIGIN_NOT_ALLOWED');
   });
 
   it('rejects oversized JSON before it reaches a route', async () => {
