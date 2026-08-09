@@ -4,6 +4,7 @@ import type {
   WardrobeItemRecord,
   WardrobeStoredImageRecord,
 } from '../../../../Wardrope.DB/repositories/RepositoryInterface/Wardrobe/wardrobe.repository.interface';
+import type { IWardrobeImageRepository } from '../../../../Wardrope.DB/repositories/RepositoryInterface/WardrobeImage/wardrobe-image.repository.interface';
 import {
   WardrobeImageValidationError,
   type IImageProcessingService,
@@ -20,6 +21,7 @@ import type {
 export class WardrobeImageService implements IWardrobeImageService {
   constructor(
     private readonly wardrobeRepository: IWardrobeRepository,
+    private readonly wardrobeImageRepository: IWardrobeImageRepository,
     private readonly imageProcessing: IImageProcessingService,
     private readonly fileStorage: IFileStorageService,
     private readonly logger: IApplicationLogger,
@@ -110,7 +112,7 @@ export class WardrobeImageService implements IWardrobeImageService {
 
     let updated: WardrobeItemRecord | null;
     try {
-      updated = await this.wardrobeRepository.replaceImage(
+      updated = await this.wardrobeImageRepository.replaceImage(
         userId,
         itemId,
         current.image?.objectKey ?? null,
@@ -195,7 +197,7 @@ export class WardrobeImageService implements IWardrobeImageService {
 
     let updated: WardrobeItemRecord | null;
     try {
-      updated = await this.wardrobeRepository.clearImage(
+      updated = await this.wardrobeImageRepository.clearImage(
         userId,
         itemId,
         current.image.objectKey,
