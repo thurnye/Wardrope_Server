@@ -15,6 +15,9 @@
     "test": "vitest run",
     "test:watch": "vitest"
   },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1045.0",
     "cors": "^2.8.6",
