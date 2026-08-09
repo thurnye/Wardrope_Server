@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { IAuthService } from '../../Wardrope.Core/services/ServicesInterface/Auth/auth.service.interface';
 import type { IHealthService } from '../../Wardrope.Core/services/ServicesInterface/Health/health.service.interface';
 import type { IPhysicalProfileService } from '../../Wardrope.Core/services/ServicesInterface/PhysicalProfile/physical-profile.service.interface';
+import type { IProductImportService } from '../../Wardrope.Core/services/ServicesInterface/ProductImport/product-import.service.interface';
 import type { IWardrobeService } from '../../Wardrope.Core/services/ServicesInterface/Wardrobe/wardrobe.service.interface';
 import { createApiRouter } from '.';
 
@@ -51,14 +52,19 @@ const physicalProfileService: IPhysicalProfileService = {
   reset: async () => undefined,
 };
 
+const productImportService: IProductImportService = {
+  preview: async () => ({ ok: false, reason: 'SOURCE_UNAVAILABLE' }),
+  importImage: async () => ({ ok: false, reason: 'SOURCE_UNAVAILABLE' }),
+};
+
 const originalNodeEnv = process.env.NODE_ENV;
 
 afterEach(() => {
   process.env.NODE_ENV = originalNodeEnv;
 });
 
-describe('createApiRouter physical profile composition', () => {
-  it('allows isolated test routers to omit Physical Profile', () => {
+describe('createApiRouter feature composition', () => {
+  it('allows isolated test routers to omit optional feature compositions', () => {
     process.env.NODE_ENV = 'test';
     expect(() => createApiRouter(healthService, authService, wardrobeService)).not.toThrow();
   });
@@ -70,7 +76,7 @@ describe('createApiRouter physical profile composition', () => {
     );
   });
 
-  it('allows production composition when Physical Profile is explicitly supplied', () => {
+  it('fails closed outside test when Product Import is not wired', () => {
     process.env.NODE_ENV = 'production';
     expect(() => createApiRouter(
       healthService,
@@ -78,6 +84,18 @@ describe('createApiRouter physical profile composition', () => {
       wardrobeService,
       undefined,
       physicalProfileService,
+    )).toThrow(/Product Import service is required/i);
+  });
+
+  it('allows production composition when required features are explicitly supplied', () => {
+    process.env.NODE_ENV = 'production';
+    expect(() => createApiRouter(
+      healthService,
+      authService,
+      wardrobeService,
+      undefined,
+      physicalProfileService,
+      productImportService,
     )).not.toThrow();
   });
 });
