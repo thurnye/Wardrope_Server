@@ -11,6 +11,7 @@ import type {
   IAuthRepository,
 } from '../../../Wardrope.DB/repositories/RepositoryInterface/Auth/auth.repository.interface';
 import { SecurityTokenService } from '../../../Wardrope.Infra/services/Security/security-token.service';
+import { noopWardrobeService } from '../../../test/noop-services';
 import { createApp } from '../../server/app';
 import { createApiRouter } from '..';
 
@@ -106,7 +107,7 @@ function buildAuthApp() {
     60 * 60 * 1_000,
   );
 
-  return createApp(createApiRouter(healthService, authService));
+  return createApp(createApiRouter(healthService, authService, noopWardrobeService));
 }
 
 function asHeaderList(value: string | string[] | undefined): string[] {
