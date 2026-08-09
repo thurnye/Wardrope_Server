@@ -1,6 +1,8 @@
 import { assertRuntimeConfiguration, env } from '../../config/env';
 import { getImageStorageConfig } from '../../config/image-storage.env';
 import { AuthService } from '../../Wardrope.Core/services/ServicesImplementation/Auth/auth.service';
+import { BaselineDressMeRecommendationProvider } from '../../Wardrope.Core/services/ServicesImplementation/DressMe/baseline-dress-me-recommendation.provider';
+import { DressMeService } from '../../Wardrope.Core/services/ServicesImplementation/DressMe/dress-me.service';
 import { FragranceService } from '../../Wardrope.Core/services/ServicesImplementation/Fragrance/fragrance.service';
 import { FragranceImageService } from '../../Wardrope.Core/services/ServicesImplementation/FragranceImage/fragrance-image.service';
 import { HealthService } from '../../Wardrope.Core/services/ServicesImplementation/Health/health.service';
@@ -89,6 +91,18 @@ export async function createApplicationRuntime(): Promise<ApplicationRuntime> {
   const fragranceImageService = new FragranceImageService(fragranceRepository, imageProcessing, fileStorage, logger);
   const wardrobeImageService = new WardrobeImageService(wardrobeRepository, wardrobeRepository, imageProcessing, fileStorage, logger);
   const productImportService = new ProductImportService(wardrobeRepository, wardrobeImageService, productSourceService);
+  const dressMeProvider = new BaselineDressMeRecommendationProvider();
+  const dressMeService = new DressMeService(
+    wardrobeService,
+    fragranceService,
+    outfitService,
+    wearHistoryService,
+    physicalProfileService,
+    preferencesService,
+    weatherService,
+    dressMeProvider,
+    logger,
+  );
 
   return {
     apiRouter: createApiRouter(
@@ -104,6 +118,7 @@ export async function createApplicationRuntime(): Promise<ApplicationRuntime> {
       fragranceImageService,
       outfitService,
       wearHistoryService,
+      dressMeService,
     ),
     async shutdown() {
       fileStorage.shutdown();
