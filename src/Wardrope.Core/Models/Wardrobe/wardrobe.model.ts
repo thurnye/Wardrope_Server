@@ -25,6 +25,14 @@ export const WARDROBE_PATTERNS = [
 
 export type WardrobePattern = (typeof WARDROBE_PATTERNS)[number];
 
+export interface WardrobeImageDto {
+  contentType: 'image/webp';
+  width: number;
+  height: number;
+  sizeBytes: number;
+  updatedAt: string;
+}
+
 export interface WardrobeItemDto {
   id: string;
   name: string;
@@ -36,6 +44,7 @@ export interface WardrobeItemDto {
   pattern: WardrobePattern | null;
   size: string | null;
   favorite: boolean;
+  image: WardrobeImageDto | null;
   createdAt: string;
   updatedAt: string;
 }
