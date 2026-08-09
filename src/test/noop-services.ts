@@ -1,3 +1,4 @@
+import type { IPhysicalProfileService } from '../Wardrope.Core/services/ServicesInterface/PhysicalProfile/physical-profile.service.interface';
 import type { IWardrobeService } from '../Wardrope.Core/services/ServicesInterface/Wardrobe/wardrobe.service.interface';
 import type { IWardrobeImageService } from '../Wardrope.Core/services/ServicesInterface/WardrobeImage/wardrobe-image.service.interface';
 
@@ -23,4 +24,12 @@ export const noopWardrobeImageService: IWardrobeImageService = {
   replace: async () => ({ ok: false, reason: 'NOT_FOUND' }),
   read: async () => ({ ok: false, reason: 'NOT_FOUND' }),
   remove: async () => ({ ok: false, reason: 'NOT_FOUND' }),
+};
+
+export const noopPhysicalProfileService: IPhysicalProfileService = {
+  get: async () => null,
+  replace: async () => {
+    throw new Error('noopPhysicalProfileService.replace should not be called in this test.');
+  },
+  reset: async () => undefined,
 };
