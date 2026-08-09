@@ -38,13 +38,15 @@ export class AuthService implements IAuthService {
 
   async register(request: RegisterRequestDto): Promise<RegisterResult> {
     const emailNormalized = normalizeEmail(request.email);
-    const existingUser = await this.authRepository.findUserByNormalizedEmail(emailNormalized);
+    const [existingUser, passwordHash] = await Promise.all([
+      this.authRepository.findUserByNormalizedEmail(emailNormalized),
+      this.passwordHasher.hash(request.password),
+    ]);
 
     if (existingUser) {
       return { ok: false, reason: 'EMAIL_UNAVAILABLE' };
     }
 
-    const passwordHash = await this.passwordHasher.hash(request.password);
     const user = await this.authRepository.createUser({
       email: request.email.trim(),
       emailNormalized,
