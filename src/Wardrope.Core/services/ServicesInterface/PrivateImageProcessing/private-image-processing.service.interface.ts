@@ -11,6 +11,20 @@ export interface ProcessedPrivateImage {
   sizeBytes: number;
 }
 
+export type PrivateImageValidationReason =
+  | 'INVALID_IMAGE'
+  | 'UNSUPPORTED_IMAGE_TYPE'
+  | 'IMAGE_DIMENSIONS_EXCEEDED'
+  | 'ANIMATED_IMAGE'
+  | 'PROCESSED_IMAGE_TOO_LARGE';
+
+export class PrivateImageValidationError extends Error {
+  constructor(public readonly reason: PrivateImageValidationReason) {
+    super(reason);
+    this.name = 'PrivateImageValidationError';
+  }
+}
+
 export interface IPrivateImageProcessingService {
   processPrivateImage(input: IncomingPrivateImage): Promise<ProcessedPrivateImage>;
 }
