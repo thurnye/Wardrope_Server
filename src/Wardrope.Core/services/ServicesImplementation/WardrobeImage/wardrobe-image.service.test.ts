@@ -11,15 +11,18 @@ import { WardrobeImageService } from './wardrobe-image.service';
 
 const USER_ID = '64b000000000000000000001';
 const ITEM_ID = '64c000000000000000000001';
-const NEW_OBJECT_KEY = `Wardrope/clothes/${USER_ID}/${ITEM_ID}/new.webp`;
+const NEW_OBJECT_KEY = 'wardrope/clothings/new.webp';
 
-function item(imageObjectKey: string | null = null): WardrobeItemRecord {
+function item(
+  imageObjectKey: string | null = null,
+  category: WardrobeItemRecord['category'] = 'outerwear',
+): WardrobeItemRecord {
   const now = new Date('2026-08-09T06:00:00.000Z');
   return {
     id: ITEM_ID,
     userId: USER_ID,
     name: 'Navy Blazer',
-    category: 'outerwear',
+    category,
     subcategory: 'Blazer',
     brand: 'Canali',
     colors: ['Navy'],
@@ -27,6 +30,7 @@ function item(imageObjectKey: string | null = null): WardrobeItemRecord {
     pattern: 'solid',
     size: '40R',
     favorite: false,
+    sourceUrl: null,
     image: imageObjectKey
       ? {
           objectKey: imageObjectKey,
@@ -43,7 +47,7 @@ function item(imageObjectKey: string | null = null): WardrobeItemRecord {
   };
 }
 
-function harness(current = item()) {
+function harness(current = item(), objectKey = NEW_OBJECT_KEY) {
   const wardrobeRepository: IWardrobeRepository = {
     create: vi.fn(),
     list: vi.fn(),
@@ -74,7 +78,7 @@ function harness(current = item()) {
 
   const fileStorage: IFileStorageService = {
     storePrivateFile: vi.fn().mockResolvedValue({
-      objectKey: NEW_OBJECT_KEY,
+      objectKey,
       etag: '"new"',
     }),
     getPrivateFile: vi.fn().mockResolvedValue({
@@ -111,8 +115,8 @@ function harness(current = item()) {
 }
 
 describe('WardrobeImageService', () => {
-  it('stores new clothes under a user/item scoped path, atomically switches Mongo, then retires the old object', async () => {
-    const h = harness(item('wardrobe/old.webp'));
+  it('stores clothing in the shared clothings folder without user or item path segments', async () => {
+    const h = harness(item('wardrobe/old.webp', 'outerwear'));
 
     const result = await h.service.replace(USER_ID, ITEM_ID, {
       bytes: Buffer.from('input'),
@@ -122,10 +126,13 @@ describe('WardrobeImageService', () => {
     expect(result.ok).toBe(true);
     expect(h.fileStorage.storePrivateFile).toHaveBeenCalledWith(
       expect.objectContaining({
-        pathSegments: ['clothes', USER_ID, ITEM_ID],
+        folder: 'clothings',
         fileExtension: 'webp',
       }),
     );
+    const storageInput = vi.mocked(h.fileStorage.storePrivateFile).mock.calls[0]?.[0];
+    expect(JSON.stringify(storageInput)).not.toContain(USER_ID);
+    expect(JSON.stringify(storageInput)).not.toContain(ITEM_ID);
     expect(h.imageRepository.replaceImage).toHaveBeenCalledWith(
       USER_ID,
       ITEM_ID,
@@ -134,6 +141,30 @@ describe('WardrobeImageService', () => {
     );
     expect(h.fileStorage.deletePrivateFile).toHaveBeenCalledWith('wardrobe/old.webp');
     expect(JSON.stringify(result)).not.toContain(NEW_OBJECT_KEY);
+  });
+
+  it.each([
+    ['top', 'clothings'],
+    ['bottom', 'clothings'],
+    ['one-piece', 'clothings'],
+    ['outerwear', 'clothings'],
+    ['bag', 'accessories'],
+    ['accessory', 'accessories'],
+    ['jewelry', 'accessories'],
+    ['footwear', 'Footware'],
+  ] as const)('routes %s images to %s', async (category, folder) => {
+    const objectKey = `wardrope/${folder}/new.webp`;
+    const h = harness(item(null, category), objectKey);
+
+    const result = await h.service.replace(USER_ID, ITEM_ID, {
+      bytes: Buffer.from('input'),
+      declaredContentType: 'image/png',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(h.fileStorage.storePrivateFile).toHaveBeenCalledWith(
+      expect.objectContaining({ folder }),
+    );
   });
 
   it('deletes the newly uploaded object when Mongo compare-and-swap loses a race', async () => {

@@ -49,15 +49,11 @@ export class S3FileStorageService implements IFileStorageService {
   }
 
   async storePrivateFile(input: StorePrivateFileInput): Promise<StoredPrivateFile> {
-    if (input.pathSegments.length === 0) {
-      throw new Error('Private storage path requires at least one scoped segment.');
-    }
-
-    const pathSegments = input.pathSegments.map(assertSafePathSegment);
+    const folder = assertSafePathSegment(input.folder);
     const extension = assertSafeFileExtension(input.fileExtension);
     const objectKey = [
       this.options.rootPrefix,
-      ...pathSegments,
+      folder,
       `${randomUUID()}.${extension}`,
     ].join('/');
 
