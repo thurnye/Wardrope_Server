@@ -28,8 +28,8 @@ import { createWeatherRoutes } from './WeatherRoute/weather.routes';
 export function createApiRouter(
   healthService: IHealthService,
   authService: IAuthService,
-  wardrobeService: IWardrobeService,
-  wardrobeImageService?: IWardrobeImageService,
+  wardrobeService: IWardropeService,
+  wardrobeImageService?: IWardropeImageService,
   physicalProfileService?: IPhysicalProfileService,
   productImportService?: IProductImportService,
   preferencesService?: IPreferencesService,
