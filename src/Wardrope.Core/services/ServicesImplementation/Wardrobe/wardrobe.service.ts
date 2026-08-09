@@ -72,8 +72,8 @@ function normalizeUpdate(input: UpdateWardrobeItemDto): UpdateWardrobeItemDto {
 export class WardrobeService implements IWardrobeService {
   constructor(
     private readonly wardrobeRepository: IWardrobeRepository,
-    private readonly fileStorage: IFileStorageService,
-    private readonly logger: IApplicationLogger,
+    private readonly fileStorage?: IFileStorageService,
+    private readonly logger?: IApplicationLogger,
   ) {}
 
   async create(userId: string, input: CreateWardrobeItemDto): Promise<WardrobeItemDto> {
@@ -125,6 +125,10 @@ export class WardrobeService implements IWardrobeService {
     }
 
     if (deleted.image) {
+      if (!this.fileStorage || !this.logger) {
+        throw new Error('Wardrobe image cleanup services are required to delete image-backed items.');
+      }
+
       try {
         await this.fileStorage.deletePrivateFile(deleted.image.objectKey);
       } catch {
