@@ -10,10 +10,6 @@ import { createPhysicalProfileRoutes } from './PhysicalProfileRoute/physical-pro
 import { createWardrobeRoutes } from './WardrobeRoute/wardrobe.routes';
 import { createWardrobeImageRoutes } from './WardrobeImageRoute/wardrobe-image.routes';
 
-/**
- * Optional feature arguments keep isolated test routers lightweight. Production runtime
- * explicitly wires Physical Profile and fails closed when it is absent.
- */
 export function createApiRouter(
   healthService: IHealthService,
   authService: IAuthService,
@@ -31,17 +27,11 @@ export function createApiRouter(
   router.use('/wardrobe', createWardrobeRoutes(wardrobeService, authService));
 
   if (physicalProfileService) {
-    router.use(
-      '/physical-profile',
-      createPhysicalProfileRoutes(physicalProfileService, authService),
-    );
+    router.use('/physical-profile', createPhysicalProfileRoutes(physicalProfileService, authService));
   }
 
   if (wardrobeImageService) {
-    router.use(
-      '/wardrobe',
-      createWardrobeImageRoutes(wardrobeImageService, wardrobeService, authService),
-    );
+    router.use('/wardrobe', createWardrobeImageRoutes(wardrobeImageService, wardrobeService, authService));
   }
 
   return router;
