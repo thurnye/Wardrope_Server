@@ -11,7 +11,7 @@ import { WardrobeImageService } from './wardrobe-image.service';
 
 const USER_ID = '64b000000000000000000001';
 const ITEM_ID = '64c000000000000000000001';
-const NEW_OBJECT_KEY = 'wardrope/clothings/new.webp';
+const NEW_OBJECT_KEY = `Wardrope/clothes/${USER_ID}/${ITEM_ID}/new.webp`;
 
 function item(
   imageObjectKey: string | null = null,
@@ -115,46 +115,35 @@ function harness(current = item(), objectKey = NEW_OBJECT_KEY) {
 }
 
 describe('WardrobeImageService', () => {
-  it('stores clothing in the shared clothings folder without user or item path segments', async () => {
-    const h = harness(item('wardrobe/old.webp', 'outerwear'));
+  it('stores every new wardrobe image under clothes/user/item regardless of category', async () => {
+    for (const category of ['top', 'bottom', 'one-piece', 'outerwear', 'bag', 'accessory', 'jewelry', 'footwear'] as const) {
+      const h = harness(item(null, category));
+      const result = await h.service.replace(USER_ID, ITEM_ID, {
+        bytes: Buffer.from('input'),
+        declaredContentType: 'image/png',
+      });
 
-    const result = await h.service.replace(USER_ID, ITEM_ID, {
-      bytes: Buffer.from('input'),
-      declaredContentType: 'image/png',
-    });
-
-    expect(result.ok).toBe(true);
-    expect(h.fileStorage.storePrivateFile).toHaveBeenCalledWith(
-      expect.objectContaining({
-        folder: 'clothings',
-        fileExtension: 'webp',
-      }),
-    );
-    const storageInput = vi.mocked(h.fileStorage.storePrivateFile).mock.calls[0]?.[0];
-    expect(JSON.stringify(storageInput)).not.toContain(USER_ID);
-    expect(JSON.stringify(storageInput)).not.toContain(ITEM_ID);
-    expect(h.imageRepository.replaceImage).toHaveBeenCalledWith(
-      USER_ID,
-      ITEM_ID,
-      'wardrobe/old.webp',
-      expect.objectContaining({ objectKey: NEW_OBJECT_KEY }),
-    );
-    expect(h.fileStorage.deletePrivateFile).toHaveBeenCalledWith('wardrobe/old.webp');
-    expect(JSON.stringify(result)).not.toContain(NEW_OBJECT_KEY);
+      expect(result.ok).toBe(true);
+      expect(h.fileStorage.storePrivateFile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pathSegments: ['clothes', USER_ID, ITEM_ID],
+          fileExtension: 'webp',
+        }),
+      );
+      expect(JSON.stringify(result)).not.toContain(NEW_OBJECT_KEY);
+    }
   });
 
-  it.each([
-    ['top', 'clothings'],
-    ['bottom', 'clothings'],
-    ['one-piece', 'clothings'],
-    ['outerwear', 'clothings'],
-    ['bag', 'accessories'],
-    ['accessory', 'accessories'],
-    ['jewelry', 'accessories'],
-    ['footwear', 'Footware'],
-  ] as const)('routes %s images to %s', async (category, folder) => {
-    const objectKey = `wardrope/${folder}/new.webp`;
-    const h = harness(item(null, category), objectKey);
+  it('retires an older object only after the database points at the new image', async () => {
+    const h = harness(item('wardrope/old.webp', 'outerwear'));
+    const calls: string[] = [];
+    vi.mocked(h.imageRepository.replaceImage).mockImplementation(async (_userId, _itemId, _expected, image) => {
+      calls.push('db');
+      return { ...item('wardrope/old.webp'), image };
+    });
+    vi.mocked(h.fileStorage.deletePrivateFile).mockImplementation(async () => {
+      calls.push('s3-delete');
+    });
 
     const result = await h.service.replace(USER_ID, ITEM_ID, {
       bytes: Buffer.from('input'),
@@ -162,17 +151,16 @@ describe('WardrobeImageService', () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(h.fileStorage.storePrivateFile).toHaveBeenCalledWith(
-      expect.objectContaining({ folder }),
-    );
+    expect(calls).toEqual(['db', 's3-delete']);
+    expect(h.fileStorage.deletePrivateFile).toHaveBeenCalledWith('wardrope/old.webp');
   });
 
   it('deletes the newly uploaded object when Mongo compare-and-swap loses a race', async () => {
-    const h = harness(item('wardrobe/old.webp'));
+    const h = harness(item('wardrope/old.webp'));
     vi.mocked(h.imageRepository.replaceImage).mockResolvedValueOnce(null);
     vi.mocked(h.wardrobeRepository.findById)
-      .mockResolvedValueOnce(item('wardrobe/old.webp'))
-      .mockResolvedValueOnce(item('wardrobe/other.webp'));
+      .mockResolvedValueOnce(item('wardrope/old.webp'))
+      .mockResolvedValueOnce(item('wardrope/other.webp'));
 
     const result = await h.service.replace(USER_ID, ITEM_ID, {
       bytes: Buffer.from('input'),
@@ -181,24 +169,24 @@ describe('WardrobeImageService', () => {
 
     expect(result).toEqual({ ok: false, reason: 'CONFLICT' });
     expect(h.fileStorage.deletePrivateFile).toHaveBeenCalledWith(NEW_OBJECT_KEY);
-    expect(h.fileStorage.deletePrivateFile).not.toHaveBeenCalledWith('wardrobe/old.webp');
+    expect(h.fileStorage.deletePrivateFile).not.toHaveBeenCalledWith('wardrope/old.webp');
   });
 
   it('reads an existing legacy object key exactly as stored for backward compatibility', async () => {
-    const h = harness(item('wardrobe/private.webp'));
+    const h = harness(item('wardrope/private.webp'));
 
     const result = await h.service.read(USER_ID, ITEM_ID);
 
     expect(result.ok).toBe(true);
-    expect(h.fileStorage.getPrivateFile).toHaveBeenCalledWith('wardrobe/private.webp');
+    expect(h.fileStorage.getPrivateFile).toHaveBeenCalledWith('wardrope/private.webp');
   });
 
   it('clears Mongo before best-effort deletion of the private object', async () => {
-    const h = harness(item('wardrobe/private.webp'));
+    const h = harness(item('wardrope/private.webp'));
     const calls: string[] = [];
     vi.mocked(h.imageRepository.clearImage).mockImplementation(async () => {
       calls.push('db');
-      return { ...item('wardrobe/private.webp'), image: null };
+      return { ...item('wardrope/private.webp'), image: null };
     });
     vi.mocked(h.fileStorage.deletePrivateFile).mockImplementation(async () => {
       calls.push('s3');
