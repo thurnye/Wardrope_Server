@@ -5,6 +5,11 @@ import {
   type IncomingWardrobeImage,
   type ProcessedWardrobeImage,
 } from '../../../Wardrope.Core/services/ServicesInterface/ImageProcessing/image-processing.service.interface';
+import type {
+  IPrivateImageProcessingService,
+  IncomingPrivateImage,
+  ProcessedPrivateImage,
+} from '../../../Wardrope.Core/services/ServicesInterface/PrivateImageProcessing/private-image-processing.service.interface';
 
 const MAX_RAW_BYTES = 10 * 1024 * 1024;
 const MAX_OUTPUT_BYTES = 5 * 1024 * 1024;
@@ -17,7 +22,11 @@ function isPixelLimitError(error: unknown): boolean {
   return error instanceof Error && /pixel limit|input image exceeds/i.test(error.message);
 }
 
-export class SharpImageProcessingService implements IImageProcessingService {
+export class SharpImageProcessingService implements IImageProcessingService, IPrivateImageProcessingService {
+  async processPrivateImage(input: IncomingPrivateImage): Promise<ProcessedPrivateImage> {
+    return this.processWardrobeImage(input);
+  }
+
   async processWardrobeImage(input: IncomingWardrobeImage): Promise<ProcessedWardrobeImage> {
     if (input.bytes.byteLength === 0 || input.bytes.byteLength > MAX_RAW_BYTES) {
       throw new WardrobeImageValidationError('INVALID_IMAGE');
