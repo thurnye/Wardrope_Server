@@ -5,6 +5,16 @@ import type {
   WardrobePattern,
 } from '../../../../Wardrope.Core/Models/Wardrobe/wardrobe.model';
 
+export interface WardrobeStoredImageRecord {
+  objectKey: string;
+  etag: string | null;
+  contentType: 'image/webp';
+  width: number;
+  height: number;
+  sizeBytes: number;
+  updatedAt: Date;
+}
+
 export interface WardrobeItemRecord {
   id: string;
   userId: string;
@@ -17,6 +27,7 @@ export interface WardrobeItemRecord {
   pattern: WardrobePattern | null;
   size: string | null;
   favorite: boolean;
+  image: WardrobeStoredImageRecord | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -43,6 +54,17 @@ export interface IWardrobeRepository {
     itemId: string,
     input: UpdateWardrobeItemDto,
   ): Promise<WardrobeItemRecord | null>;
-  delete(userId: string, itemId: string): Promise<boolean>;
+  replaceImage(
+    userId: string,
+    itemId: string,
+    expectedObjectKey: string | null,
+    image: WardrobeStoredImageRecord,
+  ): Promise<WardrobeItemRecord | null>;
+  clearImage(
+    userId: string,
+    itemId: string,
+    expectedObjectKey: string,
+  ): Promise<WardrobeItemRecord | null>;
+  delete(userId: string, itemId: string): Promise<WardrobeItemRecord | null>;
   ensureIndexes(): Promise<void>;
 }
