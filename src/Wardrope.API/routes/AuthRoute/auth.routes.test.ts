@@ -169,7 +169,7 @@ describe('Wardrope authentication API', () => {
     expect(duplicate.body.error.message).not.toMatch(/already exists|registered|email exists/i);
   });
 
-  it('rejects account writes from an untrusted browser origin', async () => {
+  it('rejects auth browser requests from an untrusted origin', async () => {
     const response = await request(buildAuthApp())
       .post('/api/v1/auth/register')
       .set('Origin', 'https://attacker.example')
@@ -204,7 +204,7 @@ describe('Wardrope authentication API', () => {
     expect(wrongPassword.body.error.code).toBe('INVALID_CREDENTIALS');
   });
 
-  it('creates an HttpOnly session, rotates CSRF on bootstrap, and invalidates it on logout', async () => {
+  it('creates a secure session, keeps CSRF stable across bootstrap, and invalidates it on logout', async () => {
     const app = buildAuthApp();
     const agent = request.agent(app);
 
@@ -220,25 +220,30 @@ describe('Wardrope authentication API', () => {
       .send({ email: validAccount.email, password: validAccount.password })
       .expect(200);
 
-    const setCookie = login.headers['set-cookie']?.[0] ?? '';
-    expect(setCookie).toContain('wardrope_session=');
-    expect(setCookie).toContain('HttpOnly');
-    expect(setCookie).toContain('SameSite=Lax');
+    const cookies = login.headers['set-cookie'] ?? [];
+    const sessionCookie = cookies.find((cookie: string) => cookie.startsWith('wardrope_session=')) ?? '';
+    const csrfCookie = cookies.find((cookie: string) => cookie.startsWith('wardrope_csrf=')) ?? '';
+    expect(sessionCookie).toContain('HttpOnly');
+    expect(sessionCookie).toContain('SameSite=Lax');
+    expect(csrfCookie).toContain('SameSite=Lax');
+    expect(csrfCookie).not.toContain('HttpOnly');
     expect(JSON.stringify(login.body)).not.toMatch(/sessionToken|tokenHash|passwordHash/i);
     expect(login.body.data.csrfToken).toBeTruthy();
 
-    const bootstrap = await agent.get('/api/v1/auth/session').expect(200);
+    const bootstrap = await agent
+      .get('/api/v1/auth/session')
+      .set('Origin', 'http://localhost:5173')
+      .expect(200);
     expect(bootstrap.body.data.authenticated).toBe(true);
     expect(bootstrap.body.data.user.email).toBe(validAccount.email);
-    expect(bootstrap.body.data.csrfToken).toBeTruthy();
-    expect(bootstrap.body.data.csrfToken).not.toBe(login.body.data.csrfToken);
+    expect(bootstrap.body.data.csrfToken).toBe(login.body.data.csrfToken);
 
-    const staleCsrf = await agent
+    const wrongCsrf = await agent
       .post('/api/v1/auth/logout')
       .set('Origin', 'http://localhost:5173')
-      .set('X-CSRF-Token', login.body.data.csrfToken)
+      .set('X-CSRF-Token', 'not-the-csrf-token')
       .expect(403);
-    expect(staleCsrf.body.error.code).toBe('CSRF_VALIDATION_FAILED');
+    expect(wrongCsrf.body.error.code).toBe('CSRF_VALIDATION_FAILED');
 
     const logout = await agent
       .post('/api/v1/auth/logout')
@@ -246,9 +251,14 @@ describe('Wardrope authentication API', () => {
       .set('X-CSRF-Token', bootstrap.body.data.csrfToken)
       .expect(200);
     expect(logout.body.data.loggedOut).toBe(true);
-    expect(logout.headers['set-cookie']?.[0]).toMatch(/wardrope_session=;/);
+    const clearedCookies = logout.headers['set-cookie'] ?? [];
+    expect(clearedCookies.some((cookie: string) => /wardrope_session=;/.test(cookie))).toBe(true);
+    expect(clearedCookies.some((cookie: string) => /wardrope_csrf=;/.test(cookie))).toBe(true);
 
-    const afterLogout = await agent.get('/api/v1/auth/session').expect(200);
+    const afterLogout = await agent
+      .get('/api/v1/auth/session')
+      .set('Origin', 'http://localhost:5173')
+      .expect(200);
     expect(afterLogout.body.data).toEqual({ authenticated: false });
   });
 
@@ -275,13 +285,24 @@ describe('Wardrope authentication API', () => {
     expect(response.body.error.code).toBe('CSRF_VALIDATION_FAILED');
   });
 
-  it('clears an invalid session cookie during session bootstrap', async () => {
+  it('blocks session bootstrap from an untrusted browser origin', async () => {
     const response = await request(buildAuthApp())
       .get('/api/v1/auth/session')
-      .set('Cookie', 'wardrope_session=invalid-token')
+      .set('Origin', 'https://attacker.example')
+      .expect(403);
+
+    expect(response.body.error.code).toBe('ORIGIN_NOT_ALLOWED');
+  });
+
+  it('clears invalid auth cookies during session bootstrap', async () => {
+    const response = await request(buildAuthApp())
+      .get('/api/v1/auth/session')
+      .set('Cookie', 'wardrope_session=invalid-token; wardrope_csrf=invalid-csrf')
       .expect(200);
 
     expect(response.body.data).toEqual({ authenticated: false });
-    expect(response.headers['set-cookie']?.[0]).toMatch(/wardrope_session=;/);
+    const clearedCookies = response.headers['set-cookie'] ?? [];
+    expect(clearedCookies.some((cookie: string) => /wardrope_session=;/.test(cookie))).toBe(true);
+    expect(clearedCookies.some((cookie: string) => /wardrope_csrf=;/.test(cookie))).toBe(true);
   });
 });
