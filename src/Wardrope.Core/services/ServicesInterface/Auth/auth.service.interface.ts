@@ -18,7 +18,7 @@ export type LoginResult =
 export interface IAuthService {
   register(request: RegisterRequestDto): Promise<RegisterResult>;
   login(request: LoginRequestDto): Promise<LoginResult>;
-  getSession(sessionToken?: string): Promise<SessionStatusDto>;
+  getSession(sessionToken?: string, csrfToken?: string): Promise<SessionStatusDto>;
   authenticate(sessionToken?: string): Promise<AuthenticatedRequestContext | null>;
   verifyCsrf(context: AuthenticatedRequestContext, csrfToken?: string): boolean;
   logout(sessionId: string): Promise<void>;
