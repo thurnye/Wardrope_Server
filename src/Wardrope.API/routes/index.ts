@@ -10,22 +10,34 @@ import { createPhysicalProfileRoutes } from './PhysicalProfileRoute/physical-pro
 import { createWardrobeRoutes } from './WardrobeRoute/wardrobe.routes';
 import { createWardrobeImageRoutes } from './WardrobeImageRoute/wardrobe-image.routes';
 
+/**
+ * The fourth argument remains the optional wardrobe-image service for backwards-compatible
+ * isolated test composition. Production runtime must also provide Physical Profile as the
+ * fifth argument; missing it fails closed outside NODE_ENV=test.
+ */
 export function createApiRouter(
   healthService: IHealthService,
   authService: IAuthService,
   wardrobeService: IWardrobeService,
-  physicalProfileService: IPhysicalProfileService,
   wardrobeImageService?: IWardrobeImageService,
+  physicalProfileService?: IPhysicalProfileService,
 ): Router {
+  if (!physicalProfileService && process.env.NODE_ENV !== 'test') {
+    throw new Error('Physical Profile service is required to create the Wardrope API router.');
+  }
+
   const router = Router();
 
   router.use('/health', createHealthRoutes(healthService));
   router.use('/auth', createAuthRoutes(authService));
   router.use('/wardrobe', createWardrobeRoutes(wardrobeService, authService));
-  router.use(
-    '/physical-profile',
-    createPhysicalProfileRoutes(physicalProfileService, authService),
-  );
+
+  if (physicalProfileService) {
+    router.use(
+      '/physical-profile',
+      createPhysicalProfileRoutes(physicalProfileService, authService),
+    );
+  }
 
   if (wardrobeImageService) {
     router.use(

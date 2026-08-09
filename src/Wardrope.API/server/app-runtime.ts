@@ -74,8 +74,8 @@ export async function createApplicationRuntime(): Promise<ApplicationRuntime> {
       healthService,
       authService,
       wardrobeService,
-      physicalProfileService,
       wardrobeImageService,
+      physicalProfileService,
     ),
     async shutdown() {
       fileStorage.shutdown();
