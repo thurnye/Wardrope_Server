@@ -12,17 +12,20 @@ export function createApiRouter(
   healthService: IHealthService,
   authService: IAuthService,
   wardrobeService: IWardrobeService,
-  wardrobeImageService: IWardrobeImageService,
+  wardrobeImageService?: IWardrobeImageService,
 ): Router {
   const router = Router();
 
   router.use('/health', createHealthRoutes(healthService));
   router.use('/auth', createAuthRoutes(authService));
   router.use('/wardrobe', createWardrobeRoutes(wardrobeService, authService));
-  router.use(
-    '/wardrobe',
-    createWardrobeImageRoutes(wardrobeImageService, wardrobeService, authService),
-  );
+
+  if (wardrobeImageService) {
+    router.use(
+      '/wardrobe',
+      createWardrobeImageRoutes(wardrobeImageService, wardrobeService, authService),
+    );
+  }
 
   return router;
 }
