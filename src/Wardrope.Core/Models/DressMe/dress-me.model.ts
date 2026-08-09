@@ -31,6 +31,8 @@ export const DRESS_ME_DRESS_CODES = [
 ] as const;
 export type DressMeDressCode = (typeof DRESS_ME_DRESS_CODES)[number];
 
+export type DressMeEngine = 'baseline' | 'ai';
+
 export interface DressMeLocationInput {
   latitude: number;
   longitude: number;
@@ -90,7 +92,7 @@ export interface DressMeRecommendationDto {
 export interface DressMeResponseDto {
   forAt: string;
   generatedAt: string;
-  engine: 'baseline';
+  engine: DressMeEngine;
   weather: DressMeWeatherDto | null;
   warnings: DressMeWarningCode[];
   recommendations: DressMeRecommendationDto[];
