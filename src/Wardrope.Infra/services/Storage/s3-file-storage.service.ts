@@ -12,15 +12,36 @@ import type {
   StoredPrivateFile,
 } from '../../../Wardrope.Core/services/ServicesInterface/Storage/file-storage.service.interface';
 
+const SAFE_PATH_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
+const SAFE_EXTENSION = /^[A-Za-z0-9]{1,16}$/;
+
+function assertSafePathSegment(segment: string): string {
+  if (!SAFE_PATH_SEGMENT.test(segment)) {
+    throw new Error('Invalid private storage path segment.');
+  }
+
+  return segment;
+}
+
+function assertSafeFileExtension(extension: string): string {
+  if (!SAFE_EXTENSION.test(extension)) {
+    throw new Error('Invalid private storage file extension.');
+  }
+
+  return extension;
+}
+
 export interface S3FileStorageOptions {
   region: string;
   bucketName: string;
+  rootPrefix: string;
 }
 
 export class S3FileStorageService implements IFileStorageService {
   private readonly client: S3Client;
 
   constructor(private readonly options: S3FileStorageOptions) {
+    assertSafePathSegment(options.rootPrefix);
     this.client = new S3Client({
       region: options.region,
       maxAttempts: 3,
@@ -28,7 +49,18 @@ export class S3FileStorageService implements IFileStorageService {
   }
 
   async storePrivateFile(input: StorePrivateFileInput): Promise<StoredPrivateFile> {
-    const objectKey = `wardrobe/${randomUUID()}.${input.fileExtension}`;
+    if (input.pathSegments.length === 0) {
+      throw new Error('Private storage path requires at least one scoped segment.');
+    }
+
+    const pathSegments = input.pathSegments.map(assertSafePathSegment);
+    const extension = assertSafeFileExtension(input.fileExtension);
+    const objectKey = [
+      this.options.rootPrefix,
+      ...pathSegments,
+      `${randomUUID()}.${extension}`,
+    ].join('/');
+
     const response = await this.client.send(new PutObjectCommand({
       Bucket: this.options.bucketName,
       Key: objectKey,

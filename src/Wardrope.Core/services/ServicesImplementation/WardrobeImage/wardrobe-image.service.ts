@@ -94,6 +94,7 @@ export class WardrobeImageService implements IWardrobeImageService {
         body: processed.bytes,
         contentType: processed.contentType,
         fileExtension: 'webp',
+        pathSegments: ['clothes', userId, itemId],
       });
     } catch {
       this.logger.error('wardrobe_image_store_failed', { itemId });

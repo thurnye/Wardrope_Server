@@ -2,6 +2,7 @@ export interface StorePrivateFileInput {
   body: Uint8Array;
   contentType: string;
   fileExtension: string;
+  pathSegments: readonly string[];
 }
 
 export interface StoredPrivateFile {
