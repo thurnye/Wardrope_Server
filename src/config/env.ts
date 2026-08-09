@@ -1,0 +1,47 @@
+import 'dotenv/config';
+import { z } from 'zod';
+
+const envSchema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  PORT: z.coerce.number().int().min(1).max(65_535).default(4000),
+  CORS_ORIGINS: z.string().default('http://localhost:5173'),
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
+  MONGODB_URI: z.string().min(1).optional(),
+  MONGODB_DB_NAME: z.string().min(1).default('wardrope'),
+});
+
+const parsed = envSchema.safeParse(process.env);
+
+if (!parsed.success) {
+  const details = parsed.error.issues
+    .map((issue) => `${issue.path.join('.') || 'environment'}: ${issue.message}`)
+    .join('; ');
+  throw new Error(`Invalid Wardrope server configuration: ${details}`);
+}
+
+const corsOrigins = parsed.data.CORS_ORIGINS.split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+export const env = Object.freeze({
+  nodeEnv: parsed.data.NODE_ENV,
+  port: parsed.data.PORT,
+  corsOrigins,
+  trustProxyHops: parsed.data.TRUST_PROXY_HOPS,
+  mongoUri: parsed.data.MONGODB_URI,
+  mongoDbName: parsed.data.MONGODB_DB_NAME,
+});
+
+export function assertRuntimeConfiguration(): void {
+  if (env.nodeEnv !== 'production') {
+    return;
+  }
+
+  if (!env.mongoUri) {
+    throw new Error('MONGODB_URI is required in production.');
+  }
+
+  if (env.corsOrigins.length === 0 || env.corsOrigins.some((origin) => origin.includes('localhost'))) {
+    throw new Error('CORS_ORIGINS must contain explicit production origins in production.');
+  }
+}
