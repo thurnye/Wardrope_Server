@@ -27,7 +27,7 @@ export interface WardrobeItemRecord {
   pattern: WardrobePattern | null;
   size: string | null;
   favorite: boolean;
-  image: WardrobeStoredImageRecord | null;
+  image?: WardrobeStoredImageRecord | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -54,17 +54,6 @@ export interface IWardrobeRepository {
     itemId: string,
     input: UpdateWardrobeItemDto,
   ): Promise<WardrobeItemRecord | null>;
-  replaceImage(
-    userId: string,
-    itemId: string,
-    expectedObjectKey: string | null,
-    image: WardrobeStoredImageRecord,
-  ): Promise<WardrobeItemRecord | null>;
-  clearImage(
-    userId: string,
-    itemId: string,
-    expectedObjectKey: string,
-  ): Promise<WardrobeItemRecord | null>;
-  delete(userId: string, itemId: string): Promise<WardrobeItemRecord | null>;
+  delete(userId: string, itemId: string): Promise<boolean>;
   ensureIndexes(): Promise<void>;
 }
