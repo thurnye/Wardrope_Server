@@ -96,17 +96,26 @@ export class AuthService implements IAuthService {
     return { ok: true, value };
   }
 
-  async getSession(sessionToken?: string): Promise<SessionStatusDto> {
+  async getSession(sessionToken?: string, csrfToken?: string): Promise<SessionStatusDto> {
     const context = await this.authenticate(sessionToken);
 
     if (!context) {
       return { authenticated: false };
     }
 
-    const csrfToken = this.tokenService.generateToken();
+    if (csrfToken && this.verifyCsrf(context, csrfToken)) {
+      return {
+        authenticated: true,
+        user: context.user,
+        csrfToken,
+        expiresAt: context.expiresAt.toISOString(),
+      };
+    }
+
+    const replacementCsrfToken = this.tokenService.generateToken();
     const rotated = await this.authRepository.rotateCsrfToken(
       context.sessionId,
-      this.tokenService.hashToken(csrfToken),
+      this.tokenService.hashToken(replacementCsrfToken),
     );
 
     if (!rotated) {
@@ -116,7 +125,7 @@ export class AuthService implements IAuthService {
     return {
       authenticated: true,
       user: context.user,
-      csrfToken,
+      csrfToken: replacementCsrfToken,
       expiresAt: context.expiresAt.toISOString(),
     };
   }
