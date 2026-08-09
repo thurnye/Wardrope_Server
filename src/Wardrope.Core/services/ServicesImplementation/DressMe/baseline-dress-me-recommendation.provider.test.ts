@@ -4,7 +4,7 @@ import type { WardrobeItemDto } from '../../../Models/Wardrobe/wardrobe.model';
 import { BaselineDressMeRecommendationProvider } from './baseline-dress-me-recommendation.provider';
 
 const NOW = '2026-08-09T15:00:00.000Z';
-const TOP_ID = '64c000000000000000000001';
+const TOP_ID = '64c000000000000000001';
 const BOTTOM_ID = '64c000000000000000000002';
 const SHOE_ID = '64c000000000000000000003';
 
@@ -60,6 +60,7 @@ function context(): DressMeProviderContext {
       patternLevel: 'minimal',
       layeringLevel: 'balanced',
       repeatPreference: 'maximize-variety',
+      createdAt: NOW,
       updatedAt: NOW,
     },
     weather: {
