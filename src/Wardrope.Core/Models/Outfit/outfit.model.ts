@@ -11,22 +11,22 @@ export interface OutfitDto {
 export interface CreateOutfitDto {
   name: string;
   wardrobeItemIds: string[];
-  fragranceId?: string | null;
-  favorite?: boolean;
+  fragranceId?: string | null | undefined;
+  favorite?: boolean | undefined;
 }
 
 export interface UpdateOutfitDto {
-  name?: string;
-  wardrobeItemIds?: string[];
-  fragranceId?: string | null;
-  favorite?: boolean;
+  name?: string | undefined;
+  wardrobeItemIds?: string[] | undefined;
+  fragranceId?: string | null | undefined;
+  favorite?: boolean | undefined;
 }
 
 export interface OutfitListQueryDto {
   page: number;
   pageSize: number;
-  favorite?: boolean;
-  search?: string;
+  favorite?: boolean | undefined;
+  search?: string | undefined;
 }
 
 export interface OutfitListDto {
@@ -56,24 +56,24 @@ export interface WearHistoryDto {
 export interface CreateWearHistoryDto {
   wornAt: string;
   wardrobeItemIds: string[];
-  fragranceId?: string | null;
-  sourceOutfitId?: string | null;
-  source?: WearHistorySource;
+  fragranceId?: string | null | undefined;
+  sourceOutfitId?: string | null | undefined;
+  source?: WearHistorySource | undefined;
 }
 
 export interface UpdateWearHistoryDto {
-  wornAt?: string;
-  wardrobeItemIds?: string[];
-  fragranceId?: string | null;
-  sourceOutfitId?: string | null;
-  source?: WearHistorySource;
+  wornAt?: string | undefined;
+  wardrobeItemIds?: string[] | undefined;
+  fragranceId?: string | null | undefined;
+  sourceOutfitId?: string | null | undefined;
+  source?: WearHistorySource | undefined;
 }
 
 export interface WearHistoryListQueryDto {
   page: number;
   pageSize: number;
-  from?: string;
-  to?: string;
+  from?: string | undefined;
+  to?: string | undefined;
 }
 
 export interface WearHistoryListDto {
