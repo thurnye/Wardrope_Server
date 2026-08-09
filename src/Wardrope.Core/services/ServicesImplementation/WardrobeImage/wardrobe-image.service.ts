@@ -10,34 +10,13 @@ import {
   type IImageProcessingService,
 } from '../../ServicesInterface/ImageProcessing/image-processing.service.interface';
 import type { IApplicationLogger } from '../../ServicesInterface/Logging/application-logger.service.interface';
-import type {
-  IFileStorageService,
-  PrivateStorageFolder,
-} from '../../ServicesInterface/Storage/file-storage.service.interface';
+import type { IFileStorageService } from '../../ServicesInterface/Storage/file-storage.service.interface';
 import type {
   IWardrobeImageService,
   ReplaceWardrobeImageInput,
   WardrobeImageMutationResult,
   WardrobeImageReadResult,
 } from '../../ServicesInterface/WardrobeImage/wardrobe-image.service.interface';
-
-function resolveWardrobeImageFolder(
-  category: WardrobeItemRecord['category'],
-): PrivateStorageFolder {
-  switch (category) {
-    case 'top':
-    case 'bottom':
-    case 'one-piece':
-    case 'outerwear':
-      return 'clothings';
-    case 'bag':
-    case 'accessory':
-    case 'jewelry':
-      return 'accessories';
-    case 'footwear':
-      return 'Footware';
-  }
-}
 
 export class WardrobeImageService implements IWardrobeImageService {
   constructor(
@@ -115,7 +94,7 @@ export class WardrobeImageService implements IWardrobeImageService {
         body: processed.bytes,
         contentType: processed.contentType,
         fileExtension: 'webp',
-        folder: resolveWardrobeImageFolder(current.category),
+        pathSegments: ['clothes', userId, itemId],
       });
     } catch {
       this.logger.error('wardrobe_image_store_failed', { itemId });
