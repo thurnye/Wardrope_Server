@@ -6,6 +6,7 @@ import type {
   WardrobeListQueryDto,
 } from '../../../Models/Wardrobe/wardrobe.model';
 import { toWardrobeItemDto } from '../../../mappers/Wardrobe/wardrobe.mapper';
+import type { IOutfitRepository } from '../../../../Wardrope.DB/repositories/RepositoryInterface/Outfit/outfit.repository.interface';
 import type {
   IWardrobeRepository,
   WardrobeRepositoryQuery,
@@ -83,6 +84,7 @@ export interface WardrobeImageLifecycleDependencies {
   repository: IWardrobeImageRepository;
   fileStorage: IFileStorageService;
   logger: IApplicationLogger;
+  outfitRepository?: IOutfitRepository;
 }
 
 export class WardrobeService implements IWardrobeService {
@@ -149,6 +151,16 @@ export class WardrobeService implements IWardrobeService {
     const deleted = await this.imageLifecycle.repository.deleteWithRecord(userId, itemId);
     if (!deleted) {
       return false;
+    }
+
+    if (this.imageLifecycle.outfitRepository) {
+      try {
+        await this.imageLifecycle.outfitRepository.removeWardrobeItemReferences(userId, itemId);
+      } catch {
+        this.imageLifecycle.logger.warn('outfit_reference_cleanup_after_wardrobe_delete_failed', {
+          itemId: deleted.id,
+        });
+      }
     }
 
     if (deleted.image) {
