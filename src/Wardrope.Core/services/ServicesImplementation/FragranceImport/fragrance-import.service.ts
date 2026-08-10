@@ -30,6 +30,13 @@ export class FragranceImportService implements IFragranceImportService {
         name: source.name,
         concentration: concentration(source.name),
         imageUrls: source.imageUrls,
+        fragranceFamily: source.fragranceDetails?.fragranceFamily ?? null,
+        scentType: source.fragranceDetails?.scentType ?? null,
+        keyNotes: source.fragranceDetails?.keyNotes ?? [],
+        bottleSizeMl: source.fragranceDetails?.bottleSizeMl ?? null,
+        purchasePrice: source.fragranceDetails?.price !== null && source.fragranceDetails?.price !== undefined && source.fragranceDetails.currency
+          ? { amount: source.fragranceDetails.price, currency: source.fragranceDetails.currency }
+          : null,
       } };
     } catch {
       return { ok: false, reason: 'SOURCE_UNAVAILABLE' };

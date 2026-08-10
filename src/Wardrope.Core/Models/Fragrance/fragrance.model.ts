@@ -79,6 +79,11 @@ export interface FragranceImportPreviewDto {
   name: string | null;
   concentration: FragranceConcentration | null;
   imageUrls: string[];
+  fragranceFamily: string | null;
+  scentType: string | null;
+  keyNotes: string[];
+  bottleSizeMl: number | null;
+  purchasePrice: FragrancePurchasePriceDto | null;
 }
 
 export interface FragranceListQueryDto {

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   classifyTransportFailureForTest,
+  extractReaderProductMetadataForTest,
   extractProductMetadataForTest,
   HttpProductSourceService,
+  isBlockedProductDocumentForTest,
   selectProductImageUrlForTest,
   validateAndOrderPublicAddressesForTest,
 } from './http-product-source.service';
@@ -88,6 +90,81 @@ describe('product source diagnostics', () => {
 });
 
 describe('product metadata extraction', () => {
+  it('does not treat access-denied pages as product names', () => {
+    const html = '<html><head><title>Access Denied</title></head><body>You do not have access.</body></html>';
+    const markdown = 'Title: Access Denied\n\nYou don\'t have permission to access this page.';
+
+    expect(isBlockedProductDocumentForTest(html)).toBe(true);
+    expect(extractProductMetadataForTest(html, new URL('https://shop.example/item'))).toMatchObject({
+      name: null,
+      imageUrls: [],
+    });
+    expect(extractReaderProductMetadataForTest(markdown, new URL('https://shop.example/item'))).toMatchObject({
+      name: null,
+      imageUrls: [],
+    });
+  });
+
+  it('extracts only product media from the final reader fallback', () => {
+    const markdown = `Title: Sauvage Eau de Parfum - Dior | Sephora
+
+1. [Fragrance](https://www.sephora.com/ca/en/shop/fragrance)
+
+**$150.00**
+Size: 2.0 oz / 60 ml
+**Fragrance Family:** Earthy & Woody
+**Scent Type:** Citrus & Woods
+**Key Notes:** Calabrian Bergamot, Patchouli, Vanilla Absolute
+
+![Klarna](https://www.sephora.com/img/ufe/logo-klarna.svg)
+![AI Chat](https://www.sephora.com/img/ufe/ai/ai_chat.svg)
+![Product](https://www.sephora.com/productimages/sku/s2038123-main-zoom-1.jpg?imwidth=160)`;
+
+    expect(extractReaderProductMetadataForTest(
+      markdown,
+      new URL('https://www.sephora.com/ca/en/product/sauvage-eau-de-parfum-P428500?skuId=2038123'),
+    )).toEqual({
+      name: 'Sauvage Eau de Parfum',
+      brand: 'Dior',
+      colors: [],
+      materials: [],
+      categoryHint: 'Fragrance',
+      imageUrls: ['https://www.sephora.com/productimages/sku/s2038123-main-zoom-1.jpg?imwidth=160'],
+      fragranceDetails: {
+        fragranceFamily: 'Earthy & Woody',
+        scentType: 'Citrus & Woods',
+        keyNotes: ['Calabrian Bergamot', 'Patchouli', 'Vanilla Absolute'],
+        bottleSizeMl: 60,
+        price: 150,
+        currency: 'CAD',
+      },
+    });
+  });
+
+  it('rejects recommendation images that do not match a requested retailer SKU', () => {
+    const markdown = `Title: Sauvage Eau de Parfum - Dior | Sephora
+![Other product](https://www.sephora.com/productimages/sku/s9999999-main-zoom.jpg)
+![Requested product](https://www.sephora.com/productimages/sku/s2038123-main-zoom-1.jpg)`;
+
+    expect(extractReaderProductMetadataForTest(
+      markdown,
+      new URL('https://www.sephora.com/product/example?skuId=2038123'),
+    ).imageUrls).toEqual([
+      'https://www.sephora.com/productimages/sku/s2038123-main-zoom-1.jpg',
+    ]);
+  });
+
+  it('derives only the exact Sephora SKU image when reader output omits the hero image', () => {
+    const metadata = extractReaderProductMetadataForTest(
+      'Title: Sauvage Eau de Parfum - Dior | Sephora',
+      new URL('https://www.sephora.com/ca/en/product/sauvage-P428500?skuId=2038123'),
+    );
+
+    expect(metadata.imageUrls).toEqual([
+      'https://www.sephora.com/productimages/sku/s2038123-main-zoom-1.jpg?imwidth=1200',
+    ]);
+  });
+
   it('matches a selected product image after its signed query parameters rotate', () => {
     expect(selectProductImageUrlForTest(
       ['https://cdn.example/products/shirt.jpg?signature=new&width=1200'],

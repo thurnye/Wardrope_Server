@@ -30,6 +30,14 @@ export interface ProductSourceSnapshot {
   materials: string[];
   categoryHint: string | null;
   imageUrls: string[];
+  fragranceDetails?: {
+    fragranceFamily: string | null;
+    scentType: string | null;
+    keyNotes: string[];
+    bottleSizeMl: number | null;
+    price: number | null;
+    currency: string | null;
+  } | undefined;
 }
 
 export interface DownloadedProductImage {

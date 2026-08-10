@@ -14,6 +14,8 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_REDIRECTS = 3;
 const MAX_ADDRESS_ATTEMPTS = 4;
 const REQUEST_TIMEOUT_MS = 8_000;
+const READER_FALLBACK_TIMEOUT_MS = 20_000;
+const READER_FALLBACK_ORIGIN = 'https://r.jina.ai/';
 const USER_AGENT = 'WardropeProductImporter/1.1';
 const FALLBACK_BROWSER_USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
@@ -31,6 +33,7 @@ interface ProductMetadata {
   materials: string[];
   categoryHint: string | null;
   imageUrls: string[];
+  fragranceDetails?: ProductSourceSnapshot['fragranceDetails'];
 }
 
 interface PublicAddress {
@@ -709,6 +712,19 @@ function extractMeta(html: string): Map<string, string> {
   return meta;
 }
 
+export function isBlockedProductDocumentForTest(content: string): boolean {
+  const title = content.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1]
+    ?? content.match(/^Title:\s*(.+)$/im)?.[1]
+    ?? '';
+  const normalizedTitle = decodeHtml(title.replace(/<[^>]+>/g, ' '))
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLocaleLowerCase('en');
+
+  return /^(?:access denied|forbidden|request blocked|page blocked|security check|required|just a moment)(?:\b|[.! -])/.test(normalizedTitle)
+    || /(?:you don't have permission to access|verify you are human|enable javascript and cookies to continue|reference\s*#\s*\d+\.)/i.test(content);
+}
+
 function findProductNode(value: unknown): Record<string, unknown> | null {
   if (Array.isArray(value)) {
     for (const entry of value) {
@@ -800,6 +816,9 @@ export function extractProductMetadataForTest(
   html: string,
   pageUrl: URL,
 ): ProductMetadata {
+  if (isBlockedProductDocumentForTest(html)) {
+    return { name: null, brand: null, colors: [], materials: [], categoryHint: null, imageUrls: [] };
+  }
   const product = extractJsonLdProduct(html);
   const meta = extractMeta(html);
 
@@ -855,6 +874,108 @@ export function extractProductMetadataForTest(
   };
 }
 
+function isLikelyProductImage(url: URL, alt: string): boolean {
+  const searchable = `${url.pathname} ${alt}`.toLocaleLowerCase('en');
+  if (/\.svg$/i.test(url.pathname)) return false;
+  if (/(?:logo|icon|avatar|sprite|banner|badge|payment|klarna|afterpay|chat)/.test(searchable)) {
+    return false;
+  }
+
+  return /(?:productimages?|products?|sku|pdp|catalog|merchandise|zoom|primary|main)/.test(searchable);
+}
+
+/** Parse the bounded Markdown returned by the final reader fallback. */
+export function extractReaderProductMetadataForTest(
+  markdown: string,
+  pageUrl: URL,
+): ProductMetadata {
+  if (isBlockedProductDocumentForTest(markdown)) {
+    return { name: null, brand: null, colors: [], materials: [], categoryHint: null, imageUrls: [] };
+  }
+  const title = markdown.match(/^Title:\s*(.+)$/im)?.[1]?.trim() ?? null;
+  const titleParts = title?.split(/\s+[|]\s+|\s+-\s+/).map((part) => part.trim()).filter(Boolean) ?? [];
+  const retailer = titleParts.length > 2 ? titleParts.at(-1) : null;
+  const name = titleParts[0] ?? title;
+  const brand = titleParts.length > 1
+    ? [...titleParts].reverse().find((part) => part !== name && part !== retailer) ?? null
+    : null;
+
+  const firstBreadcrumb = markdown.match(/^\d+\.\s+\[([^\]]+)]\(https?:\/\/[^)]+\)$/m)?.[1] ?? null;
+  const detail = (label: string) => markdown.match(new RegExp(`\\*\\*${label}:\\*\\*\\s*([^\\n]+)`, 'i'))?.[1]?.trim() ?? null;
+  const keyNotes = (detail('Key Notes') ?? '').split(',').map((note) => note.trim()).filter(Boolean);
+  const bottleSizeMatch = markdown.match(/\bSize:\s*(?:[\d.]+\s*oz\s*\/\s*)?([\d.]+)\s*ml\b/i);
+  const priceMatch = markdown.match(/\*\*\$([\d,]+(?:\.\d{1,2})?)\*\*/);
+  const price = priceMatch?.[1] ? Number(priceMatch[1].replaceAll(',', '')) : null;
+  const currency = price !== null
+    ? (/\/ca(?:\/|$)/i.test(pageUrl.pathname) ? 'CAD' : 'USD')
+    : null;
+  const imageUrls: string[] = [];
+  const imagePattern = /!\[([^\]]*)]\((https:\/\/[^\s)]+)(?:\s+"[^"]*")?\)/gi;
+  let imageMatch: RegExpExecArray | null;
+  while ((imageMatch = imagePattern.exec(markdown))) {
+    try {
+      const candidate = normalizeAndValidateUrl(imageMatch[2] ?? '');
+      if (isLikelyProductImage(candidate, imageMatch[1] ?? '')) {
+        imageUrls.push(candidate.toString());
+      }
+    } catch {
+      // Ignore malformed or unsafe third-party image references.
+    }
+  }
+
+  const requestedSku = pageUrl.searchParams.get('skuId')?.toLocaleLowerCase('en') ?? null;
+  const uniqueImages = Array.from(new Set(imageUrls));
+  const skuImages = requestedSku
+    ? uniqueImages.filter((imageUrl) => new URL(imageUrl).pathname.toLocaleLowerCase('en').includes(`s${requestedSku}`))
+    : [];
+  if (
+    requestedSku &&
+    /^\d+$/.test(requestedSku) &&
+    /(^|\.)sephora\.com$/i.test(pageUrl.hostname) &&
+    skuImages.length === 0
+  ) {
+    skuImages.push(`https://www.sephora.com/productimages/sku/s${requestedSku}-main-zoom-1.jpg?imwidth=1200`);
+  }
+
+  return {
+    name,
+    brand,
+    colors: [],
+    materials: [],
+    categoryHint: firstBreadcrumb,
+    imageUrls: requestedSku ? skuImages : uniqueImages,
+    fragranceDetails: {
+      fragranceFamily: detail('Fragrance Family'),
+      scentType: detail('Scent Type'),
+      keyNotes,
+      bottleSizeMl: bottleSizeMatch?.[1] ? Number(bottleSizeMatch[1]) : null,
+      price: Number.isFinite(price) ? price : null,
+      currency,
+    },
+  };
+}
+
+async function inspectWithReaderFallback(sourceUrl: string): Promise<ProductSourceSnapshot> {
+  const originalUrl = normalizeAndValidateUrl(sourceUrl);
+  const readerUrl = `${READER_FALLBACK_ORIGIN}${originalUrl.toString()}`;
+  const response = await fetchPinned(
+    readerUrl,
+    MAX_HTML_BYTES,
+    MAX_REDIRECTS,
+    Date.now() + READER_FALLBACK_TIMEOUT_MS,
+  );
+  if (!['text/plain', 'text/markdown', 'text/html'].includes(response.contentType)) {
+    throw new ProductSourceError('UNSUPPORTED_CONTENT', 'Product reader returned unsupported content.');
+  }
+
+  const metadata = extractReaderProductMetadataForTest(response.body.toString('utf8'), originalUrl);
+  if (!metadata.name && !metadata.brand && !metadata.categoryHint && metadata.imageUrls.length === 0) {
+    throw new ProductSourceError('PRODUCT_NOT_RECOGNIZED', 'Product reader metadata could not be recognized.');
+  }
+
+  return { sourceUrl: originalUrl.toString(), ...metadata };
+}
+
 /**
  * Retailers commonly rotate signed query strings between preview and save.
  * Resolve a submitted choice back to the freshly inspected, server-trusted
@@ -883,42 +1004,33 @@ export function selectProductImageUrlForTest(
 
 export class HttpProductSourceService implements IProductSourceService {
   async inspect(sourceUrl: string): Promise<ProductSourceSnapshot> {
-    const response = await fetchPinned(
-      sourceUrl,
-      MAX_HTML_BYTES,
-      MAX_REDIRECTS,
-      Date.now() + REQUEST_TIMEOUT_MS,
-      true,
-    );
-    if (
-      !['text/html', 'application/xhtml+xml'].includes(response.contentType)
-    ) {
-      throw new ProductSourceError(
-        'UNSUPPORTED_CONTENT',
-        'Product source must return HTML.',
+    normalizeAndValidateUrl(sourceUrl);
+    try {
+      const response = await fetchPinned(
+        sourceUrl,
+        MAX_HTML_BYTES,
+        MAX_REDIRECTS,
+        Date.now() + REQUEST_TIMEOUT_MS,
+        true,
       );
-    }
+      if (!['text/html', 'application/xhtml+xml'].includes(response.contentType)) {
+        throw new ProductSourceError('UNSUPPORTED_CONTENT', 'Product source must return HTML.');
+      }
 
-    const metadata = extractProductMetadataForTest(
-      response.body.toString('utf8'),
-      response.finalUrl,
-    );
-    if (
-      !metadata.name &&
-      !metadata.brand &&
-      !metadata.categoryHint &&
-      metadata.imageUrls.length === 0
-    ) {
-      throw new ProductSourceError(
-        'PRODUCT_NOT_RECOGNIZED',
-        'Product metadata could not be recognized.',
-      );
-    }
+      const metadata = extractProductMetadataForTest(response.body.toString('utf8'), response.finalUrl);
+      if (!metadata.name && !metadata.brand && !metadata.categoryHint && metadata.imageUrls.length === 0) {
+        throw new ProductSourceError('PRODUCT_NOT_RECOGNIZED', 'Product metadata could not be recognized.');
+      }
 
-    return {
-      sourceUrl: response.finalUrl.toString(),
-      ...metadata,
-    };
+      return { sourceUrl: response.finalUrl.toString(), ...metadata };
+    } catch (error) {
+      if (error instanceof ProductSourceError && error.reason === 'URL_NOT_ALLOWED') throw error;
+      try {
+        return await inspectWithReaderFallback(sourceUrl);
+      } catch {
+        throw error;
+      }
+    }
   }
 
   async downloadPrimaryImage(
