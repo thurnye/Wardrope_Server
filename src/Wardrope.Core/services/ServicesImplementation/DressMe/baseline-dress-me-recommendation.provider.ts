@@ -150,6 +150,12 @@ function scoreItem(
   score += occasion;
   if (occasion > 0) reasons.add('occasion-aligned');
 
+  const requestedTerms = (context.request.additionalContext ?? '')
+    .toLocaleLowerCase('en')
+    .match(/[\p{L}\p{N}-]+/gu)
+    ?.filter((term) => term.length >= 3) ?? [];
+  score += Math.min(6, requestedTerms.filter((term) => textFor(item).includes(term)).length * 2);
+
   if (context.weather) {
     const materialKeys = item.materials.map(normalized);
     if (context.weather.feelsLikeC <= 12 && materialKeys.some((material) => COLD_MATERIALS.some((needle) => material.includes(needle)))) {

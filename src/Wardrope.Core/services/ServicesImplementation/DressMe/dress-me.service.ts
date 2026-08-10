@@ -166,8 +166,9 @@ export class DressMeService implements IDressMeService {
   }
 
   async recommend(userId: string, input: DressMeRequestDto): Promise<DressMeResult> {
+    const interpreted = interpretNaturalDressMeRequest(input);
     const forAt = input.forAt ?? new Date().toISOString();
-    const includeFragrance = input.includeFragrance ?? true;
+    const includeFragrance = interpreted.includeFragrance;
     const recommendationCount = input.recommendationCount ?? 3;
 
     const [wardrobe, fragrances, savedOutfits, wearHistory, physicalProfile, preferences] = await Promise.all([
@@ -202,11 +203,12 @@ export class DressMeService implements IDressMeService {
 
     const context: DressMeProviderContext = {
       request: {
-        occasion: input.occasion,
-        dressCode: input.dressCode ?? null,
+        occasion: interpreted.occasion,
+        dressCode: interpreted.dressCode,
         forAt,
         includeFragrance,
         recommendationCount,
+        additionalContext: input.additionalContext?.trim() || null,
       },
       wardrobeItems: wardrobe.items,
       fragrances: fragrances.items,
@@ -261,4 +263,43 @@ export class DressMeService implements IDressMeService {
       },
     };
   }
+}
+
+export function interpretNaturalDressMeRequest(input: DressMeRequestDto): {
+  occasion: DressMeRequestDto['occasion'];
+  dressCode: NonNullable<DressMeProviderContext['request']['dressCode']> | null;
+  includeFragrance: boolean;
+} {
+  const text = input.additionalContext?.toLocaleLowerCase('en') ?? '';
+  const occasionRules: Array<[RegExp, DressMeRequestDto['occasion']]> = [
+    [/\b(?:wedding|bridal|reception)\b/, 'wedding'],
+    [/\b(?:date|romantic|anniversary)\b/, 'date'],
+    [/\b(?:party|club|celebration|birthday)\b/, 'party'],
+    [/\b(?:interview|meeting|office|work)\b/, 'work'],
+    [/\b(?:business|conference|corporate)\b/, 'business'],
+    [/\b(?:church|mosque|temple|religious|worship)\b/, 'religious'],
+    [/\b(?:travel|flight|airport|road trip)\b/, 'travel'],
+    [/\b(?:hike|hiking|outdoor|camping)\b/, 'outdoor'],
+    [/\b(?:gym|workout|training|exercise)\b/, 'workout'],
+    [/\b(?:gala|ceremony|formal event)\b/, 'formal-event'],
+  ];
+  const dressCodeRules: Array<[RegExp, NonNullable<DressMeProviderContext['request']['dressCode']>]> = [
+    [/\bblack[ -]?tie\b/, 'black-tie'],
+    [/\bsemi[ -]?formal\b/, 'semi-formal'],
+    [/\bbusiness[ -]?casual\b/, 'business-casual'],
+    [/\bsmart[ -]?casual\b/, 'smart-casual'],
+    [/\bcocktail\b/, 'cocktail'],
+    [/\bformal\b/, 'formal'],
+    [/\bbusiness\b/, 'business'],
+    [/\bcasual\b/, 'casual'],
+  ];
+  const occasion = occasionRules.find(([pattern]) => pattern.test(text))?.[1] ?? input.occasion;
+  const dressCode = dressCodeRules.find(([pattern]) => pattern.test(text))?.[1] ?? input.dressCode ?? null;
+  const excludesFragrance = /\b(?:no|without|skip|avoid)\s+(?:fragrance|perfume|cologne|scent)\b/.test(text);
+  const requestsFragrance = /\b(?:include|add|wear|with)\s+(?:a\s+)?(?:fragrance|perfume|cologne|scent)\b/.test(text);
+  return {
+    occasion,
+    dressCode,
+    includeFragrance: excludesFragrance ? false : requestsFragrance ? true : input.includeFragrance ?? true,
+  };
 }

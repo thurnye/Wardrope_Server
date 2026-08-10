@@ -45,6 +45,7 @@ export interface DressMeRequestDto {
   location?: DressMeLocationInput | undefined;
   includeFragrance?: boolean | undefined;
   recommendationCount?: number | undefined;
+  additionalContext?: string | undefined;
 }
 
 export const DRESS_ME_REASON_CODES = [
@@ -102,6 +103,7 @@ export interface DressMeProviderContext {
   request: Required<Pick<DressMeRequestDto, 'occasion' | 'includeFragrance' | 'recommendationCount'>> & {
     dressCode: DressMeDressCode | null;
     forAt: string;
+    additionalContext?: string | null | undefined;
   };
   wardrobeItems: WardrobeItemDto[];
   fragrances: FragranceDto[];

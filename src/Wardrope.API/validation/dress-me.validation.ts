@@ -27,4 +27,5 @@ export const dressMeRequestBodySchema = z.object({
   location: locationSchema.optional(),
   includeFragrance: z.boolean().optional(),
   recommendationCount: z.number().int().min(1).max(3).optional(),
+  additionalContext: z.string().trim().min(1).max(300).optional(),
 }).strict();
