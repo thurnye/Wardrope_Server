@@ -110,6 +110,7 @@ class FakeWardrobeRepository implements IWardrobeRepository {
       pattern: input.pattern ?? null,
       size: input.size ?? null,
       favorite: input.favorite ?? false,
+      images: [],
       createdAt: now,
       updatedAt: now,
     };

@@ -45,7 +45,7 @@ export interface WardrobeItemDto {
   size: string | null;
   favorite: boolean;
   sourceUrl: string | null;
-  image: WardrobeImageDto | null;
+  images: WardrobeImageDto[];
   createdAt: string;
   updatedAt: string;
 }
@@ -85,6 +85,7 @@ export interface ProductImportPreviewDto {
   suggestedCategory: WardrobeCategory | null;
   suggestedSubcategory: string | null;
   imageAvailable: boolean;
+  imageUrls: string[];
 }
 
 export interface WardrobeListQueryDto {

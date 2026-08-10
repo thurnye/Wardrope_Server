@@ -45,6 +45,7 @@ function mapRecord(document: FragranceDocument): FragranceRecord {
     purchaseDate: document.purchaseDate,
     purchasePrice: document.purchasePrice ? { ...document.purchasePrice } : null,
     available: document.available,
+    sourceUrl: document.sourceUrl ?? null,
     image: mapImage(document.image),
     createdAt: document.createdAt,
     updatedAt: document.updatedAt,
@@ -92,6 +93,7 @@ export class FragranceRepository implements IFragranceRepository {
       purchaseDate: input.purchaseDate ?? null,
       purchasePrice: input.purchasePrice ? { ...input.purchasePrice } : null,
       available: input.available ?? true,
+      sourceUrl: input.sourceUrl ?? null,
       image: null,
       createdAt: now,
       updatedAt: now,
@@ -154,6 +156,7 @@ export class FragranceRepository implements IFragranceRepository {
     if (input.purchaseDate !== undefined) fields.purchaseDate = input.purchaseDate;
     if (input.purchasePrice !== undefined) fields.purchasePrice = input.purchasePrice ? { ...input.purchasePrice } : null;
     if (input.available !== undefined) fields.available = input.available;
+    if (input.sourceUrl !== undefined) fields.sourceUrl = input.sourceUrl;
 
     const result = await this.collection.updateOne({ _id, userId: ownerId }, { $set: fields });
     if (result.matchedCount !== 1) return null;

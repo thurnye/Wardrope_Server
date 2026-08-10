@@ -28,7 +28,7 @@ export interface WardrobeItemRecord {
   size: string | null;
   favorite: boolean;
   sourceUrl?: string | null;
-  image?: WardrobeStoredImageRecord | null;
+  images: WardrobeStoredImageRecord[];
   createdAt: Date;
   updatedAt: Date;
 }

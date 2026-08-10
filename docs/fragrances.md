@@ -44,7 +44,7 @@ Fragrance images follow the same backend-only upload choreography as wardrobe im
 4. the backend uploads to the shared private S3 namespace:
 
 ```text
-<bucket>/wardrope/fragrances/<random-uuid>.webp
+<bucket>/wardrope/Frangrances/<random-uuid>.webp
 ```
 
 5. MongoDB stores the internal object key/ETag and safe image metadata;

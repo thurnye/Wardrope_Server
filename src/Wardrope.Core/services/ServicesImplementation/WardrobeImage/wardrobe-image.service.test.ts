@@ -31,8 +31,8 @@ function item(
     size: '40R',
     favorite: false,
     sourceUrl: null,
-    image: imageObjectKey
-      ? {
+    images: imageObjectKey
+      ? [{
           objectKey: imageObjectKey,
           etag: '"old"',
           contentType: 'image/webp',
@@ -40,8 +40,8 @@ function item(
           height: 1200,
           sizeBytes: 1000,
           updatedAt: now,
-        }
-      : null,
+        }]
+      : [],
     createdAt: now,
     updatedAt: now,
   };
@@ -60,9 +60,9 @@ function harness(current = item(), objectKey = NEW_OBJECT_KEY) {
   const imageRepository: IWardrobeImageRepository = {
     replaceImage: vi.fn().mockImplementation(async (_userId, _itemId, _expected, image) => ({
       ...current,
-      image,
+      images: [image],
     })),
-    clearImage: vi.fn().mockResolvedValue({ ...current, image: null }),
+    clearImage: vi.fn().mockResolvedValue({ ...current, images: [] }),
     deleteWithRecord: vi.fn(),
   };
 
@@ -115,8 +115,13 @@ function harness(current = item(), objectKey = NEW_OBJECT_KEY) {
 }
 
 describe('WardrobeImageService', () => {
-  it('stores every new wardrobe image under clothes/user/item regardless of category', async () => {
-    for (const category of ['top', 'bottom', 'one-piece', 'outerwear', 'bag', 'accessory', 'jewelry', 'footwear'] as const) {
+  it('stores wardrobe images in shared category folders without user or item IDs', async () => {
+    const cases = [
+      ['top', 'clothings'], ['bottom', 'clothings'], ['one-piece', 'clothings'],
+      ['outerwear', 'clothings'], ['bag', 'accessories'], ['accessory', 'accessories'],
+      ['jewelry', 'accessories'], ['footwear', 'Footware'],
+    ] as const;
+    for (const [category, folder] of cases) {
       const h = harness(item(null, category));
       const result = await h.service.replace(USER_ID, ITEM_ID, {
         bytes: Buffer.from('input'),
@@ -126,9 +131,12 @@ describe('WardrobeImageService', () => {
       expect(result.ok).toBe(true);
       expect(h.fileStorage.storePrivateFile).toHaveBeenCalledWith(
         expect.objectContaining({
-          pathSegments: ['clothes', USER_ID, ITEM_ID],
+          pathSegments: [folder],
           fileExtension: 'webp',
         }),
+      );
+      expect(h.fileStorage.storePrivateFile).not.toHaveBeenCalledWith(
+        expect.objectContaining({ pathSegments: expect.arrayContaining([USER_ID, ITEM_ID]) }),
       );
       expect(JSON.stringify(result)).not.toContain(NEW_OBJECT_KEY);
     }
@@ -172,7 +180,7 @@ describe('WardrobeImageService', () => {
     expect(h.fileStorage.deletePrivateFile).not.toHaveBeenCalledWith('wardrope/old.webp');
   });
 
-  it('reads an existing legacy object key exactly as stored for backward compatibility', async () => {
+  it('reads the first image object key exactly as stored', async () => {
     const h = harness(item('wardrope/private.webp'));
 
     const result = await h.service.read(USER_ID, ITEM_ID);
@@ -186,7 +194,7 @@ describe('WardrobeImageService', () => {
     const calls: string[] = [];
     vi.mocked(h.imageRepository.clearImage).mockImplementation(async () => {
       calls.push('db');
-      return { ...item('wardrope/private.webp'), image: null };
+      return { ...item('wardrope/private.webp'), images: [] };
     });
     vi.mocked(h.fileStorage.deletePrivateFile).mockImplementation(async () => {
       calls.push('s3');

@@ -2,6 +2,13 @@ import type { WardrobeItemDto } from '../../Models/Wardrobe/wardrobe.model';
 import type { WardrobeItemRecord } from '../../../Wardrope.DB/repositories/RepositoryInterface/Wardrobe/wardrobe.repository.interface';
 
 export function toWardrobeItemDto(record: WardrobeItemRecord): WardrobeItemDto {
+  const images = record.images.map((image) => ({
+    contentType: image.contentType,
+    width: image.width,
+    height: image.height,
+    sizeBytes: image.sizeBytes,
+    updatedAt: image.updatedAt.toISOString(),
+  }));
   return {
     id: record.id,
     name: record.name,
@@ -14,15 +21,7 @@ export function toWardrobeItemDto(record: WardrobeItemRecord): WardrobeItemDto {
     size: record.size,
     favorite: record.favorite,
     sourceUrl: record.sourceUrl ?? null,
-    image: record.image
-      ? {
-          contentType: record.image.contentType,
-          width: record.image.width,
-          height: record.image.height,
-          sizeBytes: record.image.sizeBytes,
-          updatedAt: record.image.updatedAt.toISOString(),
-        }
-      : null,
+    images,
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
   };

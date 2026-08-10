@@ -29,7 +29,7 @@ export interface WardrobeItemDocument {
   size: string | null;
   favorite: boolean;
   sourceUrl?: string | null;
-  image?: WardrobeImageDocument | null;
+  images: WardrobeImageDocument[];
   createdAt: Date;
   updatedAt: Date;
 }

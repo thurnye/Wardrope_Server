@@ -16,6 +16,7 @@ export function toFragranceDto(record: FragranceRecord): FragranceDto {
     purchaseDate: record.purchaseDate,
     purchasePrice: record.purchasePrice ? { ...record.purchasePrice } : null,
     available: record.available,
+    sourceUrl: record.sourceUrl ?? null,
     image: record.image
       ? {
           contentType: record.image.contentType,

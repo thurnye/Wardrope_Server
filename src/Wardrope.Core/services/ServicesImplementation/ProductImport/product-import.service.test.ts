@@ -11,7 +11,9 @@ import { ProductImportService } from './product-import.service';
 const USER_ID = '64b000000000000000000001';
 const ITEM_ID = '64c000000000000000000001';
 
-function item(sourceUrl: string | null = 'https://shop.example/products/navy-sneaker'): WardrobeItemRecord {
+function item(
+  sourceUrl: string | null = 'https://shop.example/products/navy-sneaker',
+): WardrobeItemRecord {
   const now = new Date('2026-08-09T12:00:00.000Z');
   return {
     id: ITEM_ID,
@@ -26,7 +28,7 @@ function item(sourceUrl: string | null = 'https://shop.example/products/navy-sne
     size: null,
     favorite: false,
     sourceUrl,
-    image: null,
+    images: [],
     createdAt: now,
     updatedAt: now,
   };
@@ -52,13 +54,13 @@ function harness(current: WardrobeItemRecord | null = item()) {
         size: null,
         favorite: false,
         sourceUrl: 'https://shop.example/products/navy-sneaker',
-        image: {
+        images: [{
           contentType: 'image/webp',
           width: 800,
           height: 800,
           sizeBytes: 1000,
           updatedAt: '2026-08-09T12:00:00.000Z',
-        },
+        }],
         createdAt: '2026-08-09T12:00:00.000Z',
         updatedAt: '2026-08-09T12:00:00.000Z',
       },
@@ -75,7 +77,7 @@ function harness(current: WardrobeItemRecord | null = item()) {
       colors: ['Navy', 'navy', 'White'],
       materials: ['Leather'],
       categoryHint: 'Men > Shoes > Sneakers',
-      imageUrl: 'https://cdn.example/navy.jpg',
+      imageUrls: ['https://cdn.example/navy.jpg'],
     }),
     downloadPrimaryImage: vi.fn().mockResolvedValue({
       bytes: Buffer.from('remote-image'),
@@ -84,7 +86,11 @@ function harness(current: WardrobeItemRecord | null = item()) {
   };
 
   return {
-    service: new ProductImportService(wardrobeRepository, wardrobeImageService, productSourceService),
+    service: new ProductImportService(
+      wardrobeRepository,
+      wardrobeImageService,
+      productSourceService,
+    ),
     wardrobeRepository,
     wardrobeImageService,
     productSourceService,
@@ -92,9 +98,11 @@ function harness(current: WardrobeItemRecord | null = item()) {
 }
 
 describe('ProductImportService', () => {
-  it('returns bounded editable product suggestions without exposing the remote image URL', async () => {
+  it('returns bounded editable product suggestions with product image choices', async () => {
     const h = harness();
-    const result = await h.service.preview('https://shop.example/products/navy-sneaker');
+    const result = await h.service.preview(
+      'https://shop.example/products/navy-sneaker',
+    );
 
     expect(result).toEqual({
       ok: true,
@@ -107,9 +115,9 @@ describe('ProductImportService', () => {
         suggestedCategory: 'footwear',
         suggestedSubcategory: 'Sneakers',
         imageAvailable: true,
+        imageUrls: ['https://cdn.example/navy.jpg'],
       },
     });
-    expect(JSON.stringify(result)).not.toContain('cdn.example');
   });
 
   it('maps blocked source URLs to a safe preview failure', async () => {
@@ -118,7 +126,9 @@ describe('ProductImportService', () => {
       new ProductSourceError('URL_NOT_ALLOWED', 'blocked'),
     );
 
-    await expect(h.service.preview('https://127.0.0.1/product')).resolves.toEqual({
+    await expect(
+      h.service.preview('https://127.0.0.1/product'),
+    ).resolves.toEqual({
       ok: false,
       reason: 'SOURCE_URL_NOT_ALLOWED',
     });
@@ -159,9 +169,32 @@ describe('ProductImportService', () => {
     );
   });
 
+  it('downloads every selected product image and archives them together', async () => {
+    const h = harness();
+    const replaceMany = vi.fn().mockResolvedValue({ ok: true, item: {} });
+    h.wardrobeImageService.replaceMany = replaceMany;
+    const urls = ['https://cdn.example/front.jpg', 'https://cdn.example/back.jpg'];
+
+    const result = await h.service.importImage(USER_ID, ITEM_ID, urls);
+
+    expect(result.ok).toBe(true);
+    expect(h.productSourceService.downloadPrimaryImage).toHaveBeenNthCalledWith(
+      1, 'https://shop.example/products/navy-sneaker', urls[0],
+    );
+    expect(h.productSourceService.downloadPrimaryImage).toHaveBeenNthCalledWith(
+      2, 'https://shop.example/products/navy-sneaker', urls[1],
+    );
+    expect(replaceMany).toHaveBeenCalledWith(USER_ID, ITEM_ID, [
+      { bytes: Buffer.from('remote-image'), declaredContentType: 'image/jpeg' },
+      { bytes: Buffer.from('remote-image'), declaredContentType: 'image/jpeg' },
+    ]);
+  });
+
   it('maps a missing remote image without attempting storage', async () => {
     const h = harness();
-    vi.mocked(h.productSourceService.downloadPrimaryImage).mockRejectedValueOnce(
+    vi.mocked(
+      h.productSourceService.downloadPrimaryImage,
+    ).mockRejectedValueOnce(
       new ProductSourceError('IMAGE_NOT_FOUND', 'missing'),
     );
 

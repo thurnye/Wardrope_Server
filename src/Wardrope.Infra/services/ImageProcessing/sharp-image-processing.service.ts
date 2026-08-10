@@ -17,14 +17,24 @@ const MAX_OUTPUT_BYTES = 5 * 1024 * 1024;
 const MAX_INPUT_DIMENSION = 8_000;
 const MAX_INPUT_PIXELS = 40_000_000;
 const MAX_OUTPUT_DIMENSION = 2_048;
-const SUPPORTED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
-function isPixelLimitError(error: unknown): boolean {
-  return error instanceof Error && /pixel limit|input image exceeds/i.test(error.message);
+function isImageMimeType(mime: string): boolean {
+  return mime.toLocaleLowerCase('en').startsWith('image/');
 }
 
-export class SharpImageProcessingService implements IImageProcessingService, IPrivateImageProcessingService {
-  async processPrivateImage(input: IncomingPrivateImage): Promise<ProcessedPrivateImage> {
+function isPixelLimitError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    /pixel limit|input image exceeds/i.test(error.message)
+  );
+}
+
+export class SharpImageProcessingService
+  implements IImageProcessingService, IPrivateImageProcessingService
+{
+  async processPrivateImage(
+    input: IncomingPrivateImage,
+  ): Promise<ProcessedPrivateImage> {
     try {
       return await this.processWardrobeImage(input);
     } catch (error) {
@@ -35,8 +45,13 @@ export class SharpImageProcessingService implements IImageProcessingService, IPr
     }
   }
 
-  async processWardrobeImage(input: IncomingWardrobeImage): Promise<ProcessedWardrobeImage> {
-    if (input.bytes.byteLength === 0 || input.bytes.byteLength > MAX_RAW_BYTES) {
+  async processWardrobeImage(
+    input: IncomingWardrobeImage,
+  ): Promise<ProcessedWardrobeImage> {
+    if (
+      input.bytes.byteLength === 0 ||
+      input.bytes.byteLength > MAX_RAW_BYTES
+    ) {
       throw new WardrobeImageValidationError('INVALID_IMAGE');
     }
 
@@ -44,12 +59,8 @@ export class SharpImageProcessingService implements IImageProcessingService, IPr
     const { fileTypeFromBuffer } = await import('file-type');
     const detected = await fileTypeFromBuffer(buffer);
 
-    if (!detected) {
+    if (!detected || !isImageMimeType(detected.mime)) {
       throw new WardrobeImageValidationError('INVALID_IMAGE');
-    }
-
-    if (!SUPPORTED_MIME_TYPES.has(detected.mime)) {
-      throw new WardrobeImageValidationError('UNSUPPORTED_IMAGE_TYPE');
     }
 
     let metadata;
@@ -61,7 +72,9 @@ export class SharpImageProcessingService implements IImageProcessingService, IPr
       }).metadata();
     } catch (error) {
       throw new WardrobeImageValidationError(
-        isPixelLimitError(error) ? 'IMAGE_DIMENSIONS_EXCEEDED' : 'INVALID_IMAGE',
+        isPixelLimitError(error)
+          ? 'IMAGE_DIMENSIONS_EXCEEDED'
+          : 'INVALID_IMAGE',
       );
     }
 
@@ -70,9 +83,9 @@ export class SharpImageProcessingService implements IImageProcessingService, IPr
     }
 
     if (
-      metadata.width > MAX_INPUT_DIMENSION
-      || metadata.height > MAX_INPUT_DIMENSION
-      || metadata.width * metadata.height > MAX_INPUT_PIXELS
+      metadata.width > MAX_INPUT_DIMENSION ||
+      metadata.height > MAX_INPUT_DIMENSION ||
+      metadata.width * metadata.height > MAX_INPUT_PIXELS
     ) {
       throw new WardrobeImageValidationError('IMAGE_DIMENSIONS_EXCEEDED');
     }

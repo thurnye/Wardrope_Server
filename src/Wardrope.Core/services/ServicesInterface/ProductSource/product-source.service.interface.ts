@@ -6,10 +6,16 @@ export type ProductSourceFailureReason =
   | 'PRODUCT_NOT_RECOGNIZED'
   | 'IMAGE_NOT_FOUND';
 
+export interface ProductSourceErrorMetadata {
+  statusCode?: number;
+  remoteBlocked?: boolean;
+}
+
 export class ProductSourceError extends Error {
   constructor(
     public readonly reason: ProductSourceFailureReason,
     message: string,
+    public readonly metadata?: ProductSourceErrorMetadata,
   ) {
     super(message);
     this.name = 'ProductSourceError';
@@ -23,7 +29,7 @@ export interface ProductSourceSnapshot {
   colors: string[];
   materials: string[];
   categoryHint: string | null;
-  imageUrl: string | null;
+  imageUrls: string[];
 }
 
 export interface DownloadedProductImage {
@@ -33,5 +39,8 @@ export interface DownloadedProductImage {
 
 export interface IProductSourceService {
   inspect(sourceUrl: string): Promise<ProductSourceSnapshot>;
-  downloadPrimaryImage(sourceUrl: string): Promise<DownloadedProductImage>;
+  downloadPrimaryImage(
+    sourceUrl: string,
+    imageUrl?: string,
+  ): Promise<DownloadedProductImage>;
 }

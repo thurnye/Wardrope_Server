@@ -5,6 +5,7 @@ import { BaselineDressMeRecommendationProvider } from '../../Wardrope.Core/servi
 import { DressMeService } from '../../Wardrope.Core/services/ServicesImplementation/DressMe/dress-me.service';
 import { FragranceService } from '../../Wardrope.Core/services/ServicesImplementation/Fragrance/fragrance.service';
 import { FragranceImageService } from '../../Wardrope.Core/services/ServicesImplementation/FragranceImage/fragrance-image.service';
+import { FragranceImportService } from '../../Wardrope.Core/services/ServicesImplementation/FragranceImport/fragrance-import.service';
 import { HealthService } from '../../Wardrope.Core/services/ServicesImplementation/Health/health.service';
 import { OutfitService, WearHistoryService } from '../../Wardrope.Core/services/ServicesImplementation/Outfit/outfit.service';
 import { PhysicalProfileService } from '../../Wardrope.Core/services/ServicesImplementation/PhysicalProfile/physical-profile.service';
@@ -90,6 +91,7 @@ export async function createApplicationRuntime(): Promise<ApplicationRuntime> {
     fragranceService,
   );
   const fragranceImageService = new FragranceImageService(fragranceRepository, imageProcessing, fileStorage, logger);
+  const fragranceImportService = new FragranceImportService(fragranceRepository, fragranceImageService, productSourceService);
   const wardrobeImageService = new WardrobeImageService(wardrobeRepository, wardrobeRepository, imageProcessing, fileStorage, logger);
   const productImportService = new ProductImportService(wardrobeRepository, wardrobeImageService, productSourceService);
 
@@ -126,6 +128,7 @@ export async function createApplicationRuntime(): Promise<ApplicationRuntime> {
       outfitService,
       wearHistoryService,
       dressMeService,
+      fragranceImportService,
     ),
     async shutdown() {
       fileStorage.shutdown();

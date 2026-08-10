@@ -52,6 +52,7 @@ function normalizeCreate(input: CreateFragranceDto): CreateFragranceDto {
     scentType: normalizeNullableText(input.scentType),
     keyNotes: normalizeNotes(input.keyNotes),
     purchasePrice: normalizePrice(input.purchasePrice),
+    sourceUrl: input.sourceUrl ? new URL(input.sourceUrl).toString() : null,
   };
 }
 
@@ -65,6 +66,7 @@ function normalizeUpdate(input: UpdateFragranceDto): UpdateFragranceDto {
     scentType: normalizeNullableText(input.scentType),
     keyNotes: normalizeNotes(input.keyNotes),
     purchasePrice: normalizePrice(input.purchasePrice),
+    sourceUrl: input.sourceUrl === undefined ? undefined : input.sourceUrl ? new URL(input.sourceUrl).toString() : null,
   };
 }
 

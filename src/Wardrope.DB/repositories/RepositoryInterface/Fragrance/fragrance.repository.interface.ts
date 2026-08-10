@@ -29,6 +29,7 @@ export interface FragranceRecord {
   purchaseDate: string | null;
   purchasePrice: { amount: number; currency: string } | null;
   available: boolean;
+  sourceUrl?: string | null;
   image: FragranceStoredImageRecord | null;
   createdAt: Date;
   updatedAt: Date;

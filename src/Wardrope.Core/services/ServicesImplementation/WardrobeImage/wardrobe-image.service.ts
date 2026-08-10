@@ -18,6 +18,22 @@ import type {
   WardrobeImageReadResult,
 } from '../../ServicesInterface/WardrobeImage/wardrobe-image.service.interface';
 
+function storageFolderForCategory(category: WardrobeItemRecord['category']): string {
+  switch (category) {
+    case 'footwear':
+      return 'Footware';
+    case 'bag':
+    case 'accessory':
+    case 'jewelry':
+      return 'accessories';
+    case 'top':
+    case 'bottom':
+    case 'one-piece':
+    case 'outerwear':
+      return 'clothings';
+  }
+}
+
 export class WardrobeImageService implements IWardrobeImageService {
   constructor(
     private readonly wardrobeRepository: IWardrobeRepository,
@@ -59,6 +75,17 @@ export class WardrobeImageService implements IWardrobeImageService {
     itemId: string,
     input: ReplaceWardrobeImageInput,
   ): Promise<WardrobeImageMutationResult> {
+    return this.replaceMany(userId, itemId, [input]);
+  }
+
+  async replaceMany(
+    userId: string,
+    itemId: string,
+    inputs: ReplaceWardrobeImageInput[],
+  ): Promise<WardrobeImageMutationResult> {
+    if (inputs.length === 0 || inputs.length > 8) {
+      return { ok: false, reason: 'INVALID_IMAGE', validationReason: 'INVALID_IMAGE_COUNT' };
+    }
     let current: WardrobeItemRecord | null;
 
     try {
@@ -72,9 +99,11 @@ export class WardrobeImageService implements IWardrobeImageService {
       return { ok: false, reason: 'NOT_FOUND' };
     }
 
-    let processed;
+    const processedImages: Array<Awaited<ReturnType<IImageProcessingService['processWardrobeImage']>>> = [];
     try {
-      processed = await this.imageProcessing.processWardrobeImage(input);
+      for (const input of inputs) {
+        processedImages.push(await this.imageProcessing.processWardrobeImage(input));
+      }
     } catch (error) {
       if (error instanceof WardrobeImageValidationError) {
         return {
@@ -88,68 +117,82 @@ export class WardrobeImageService implements IWardrobeImageService {
       return { ok: false, reason: 'STORAGE_UNAVAILABLE' };
     }
 
-    let stored;
+    const storedFiles = [];
     try {
-      stored = await this.fileStorage.storePrivateFile({
-        body: processed.bytes,
-        contentType: processed.contentType,
-        fileExtension: 'webp',
-        pathSegments: ['clothes', userId, itemId],
-      });
+      for (const processed of processedImages) {
+        storedFiles.push(await this.fileStorage.storePrivateFile({
+          body: processed.bytes,
+          contentType: processed.contentType,
+          fileExtension: 'webp',
+          pathSegments: [storageFolderForCategory(current.category)],
+        }));
+      }
     } catch {
+      await Promise.all(storedFiles.map((stored) => this.deletePrivateFileBestEffort(
+        stored.objectKey,
+        'wardrobe_image_compensation_after_store_failure_failed',
+        itemId,
+      )));
       this.logger.error('wardrobe_image_store_failed', { itemId });
       return { ok: false, reason: 'STORAGE_UNAVAILABLE' };
     }
 
-    const image: WardrobeStoredImageRecord = {
-      objectKey: stored.objectKey,
-      etag: stored.etag,
-      contentType: processed.contentType,
-      width: processed.width,
-      height: processed.height,
-      sizeBytes: processed.sizeBytes,
-      updatedAt: new Date(),
-    };
+    const images: WardrobeStoredImageRecord[] = storedFiles.map((stored, index) => {
+      const processed = processedImages[index]!;
+      return {
+        objectKey: stored.objectKey,
+        etag: stored.etag,
+        contentType: processed.contentType,
+        width: processed.width,
+        height: processed.height,
+        sizeBytes: processed.sizeBytes,
+        updatedAt: new Date(),
+      };
+    });
+    const previousImages = current.images;
 
     let updated: WardrobeItemRecord | null;
     try {
-      updated = await this.wardrobeImageRepository.replaceImage(
+      if (!this.wardrobeImageRepository.replaceImages) {
+        if (images.length !== 1) throw new Error('Multiple image persistence is unavailable.');
+        updated = await this.wardrobeImageRepository.replaceImage(
+          userId, itemId, previousImages[0]?.objectKey ?? null, images[0]!,
+        );
+      } else updated = await this.wardrobeImageRepository.replaceImages(
         userId,
         itemId,
-        current.image?.objectKey ?? null,
-        image,
+        previousImages.map((image) => image.objectKey),
+        images,
       );
     } catch {
-      await this.deletePrivateFileBestEffort(
+      await Promise.all(storedFiles.map((stored) => this.deletePrivateFileBestEffort(
         stored.objectKey,
         'wardrobe_image_compensation_after_persistence_failure_failed',
         itemId,
-      );
+      )));
       this.logger.error('wardrobe_image_persistence_failed', { itemId });
       return { ok: false, reason: 'STORAGE_UNAVAILABLE' };
     }
 
     if (!updated) {
-      await this.deletePrivateFileBestEffort(
+      await Promise.all(storedFiles.map((stored) => this.deletePrivateFileBestEffort(
         stored.objectKey,
         'wardrobe_image_compensation_after_conflict_failed',
         itemId,
-      );
+      )));
       return this.resolveCasFailure(userId, itemId);
     }
 
-    if (current.image) {
-      await this.deletePrivateFileBestEffort(
-        current.image.objectKey,
+    await Promise.all(previousImages.map((image) => this.deletePrivateFileBestEffort(
+        image.objectKey,
         'wardrobe_image_previous_object_cleanup_failed',
         itemId,
-      );
-    }
+      )));
 
     return { ok: true, item: toWardrobeItemDto(updated) };
   }
 
-  async read(userId: string, itemId: string): Promise<WardrobeImageReadResult> {
+  async read(userId: string, itemId: string, imageIndex = 0): Promise<WardrobeImageReadResult> {
     let item: WardrobeItemRecord | null;
 
     try {
@@ -159,12 +202,14 @@ export class WardrobeImageService implements IWardrobeImageService {
       return { ok: false, reason: 'STORAGE_UNAVAILABLE' };
     }
 
-    if (!item?.image) {
+    const images = item?.images ?? [];
+    const selectedImage = images[imageIndex];
+    if (!selectedImage) {
       return { ok: false, reason: 'NOT_FOUND' };
     }
 
     try {
-      const image = await this.fileStorage.getPrivateFile(item.image.objectKey);
+      const image = await this.fileStorage.getPrivateFile(selectedImage.objectKey);
 
       if (!image) {
         this.logger.error('wardrobe_image_object_missing', { itemId });
@@ -192,7 +237,8 @@ export class WardrobeImageService implements IWardrobeImageService {
       return { ok: false, reason: 'NOT_FOUND' };
     }
 
-    if (!current.image) {
+    const currentImages = current.images;
+    if (currentImages.length === 0) {
       return { ok: true, item: toWardrobeItemDto(current) };
     }
 
@@ -201,7 +247,7 @@ export class WardrobeImageService implements IWardrobeImageService {
       updated = await this.wardrobeImageRepository.clearImage(
         userId,
         itemId,
-        current.image.objectKey,
+        currentImages[0]!.objectKey,
       );
     } catch {
       this.logger.error('wardrobe_image_remove_persistence_failed', { itemId });
@@ -212,11 +258,11 @@ export class WardrobeImageService implements IWardrobeImageService {
       return this.resolveCasFailure(userId, itemId);
     }
 
-    await this.deletePrivateFileBestEffort(
-      current.image.objectKey,
+    await Promise.all(currentImages.map((image) => this.deletePrivateFileBestEffort(
+      image.objectKey,
       'wardrobe_image_removed_object_cleanup_failed',
       itemId,
-    );
+    )));
 
     return { ok: true, item: toWardrobeItemDto(updated) };
   }

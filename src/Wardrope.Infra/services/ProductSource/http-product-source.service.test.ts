@@ -3,6 +3,7 @@ import {
   classifyTransportFailureForTest,
   extractProductMetadataForTest,
   HttpProductSourceService,
+  selectProductImageUrlForTest,
   validateAndOrderPublicAddressesForTest,
 } from './http-product-source.service';
 
@@ -87,6 +88,20 @@ describe('product source diagnostics', () => {
 });
 
 describe('product metadata extraction', () => {
+  it('matches a selected product image after its signed query parameters rotate', () => {
+    expect(selectProductImageUrlForTest(
+      ['https://cdn.example/products/shirt.jpg?signature=new&width=1200'],
+      'https://cdn.example/products/shirt.jpg?signature=old&width=1200',
+    )).toBe('https://cdn.example/products/shirt.jpg?signature=new&width=1200');
+  });
+
+  it('does not match a browser-supplied URL to a different product image path', () => {
+    expect(selectProductImageUrlForTest(
+      ['https://cdn.example/products/shirt.jpg'],
+      'https://cdn.example/site/logo.jpg',
+    )).toBeUndefined();
+  });
+
   it('prefers structured Product JSON-LD and resolves relative primary images', () => {
     const html = `
       <html><head>
@@ -113,7 +128,7 @@ describe('product metadata extraction', () => {
       colors: ['Navy', 'White'],
       materials: ['Leather'],
       categoryHint: 'Men > Shoes > Sneakers',
-      imageUrl: 'https://shop.example/media/navy.jpg',
+      imageUrls: ['https://shop.example/media/navy.jpg'],
     });
   });
 
@@ -131,7 +146,7 @@ describe('product metadata extraction', () => {
     )).toMatchObject({
       name: 'Classic Oxford Shirt',
       brand: 'Example Brand',
-      imageUrl: null,
+      imageUrls: [],
     });
   });
 
@@ -154,7 +169,16 @@ describe('product metadata extraction', () => {
       colors: ['White/brown/beige'],
       materials: ['Linen', 'Viscose'],
       categoryHint: null,
-      imageUrl: 'https://image.hm.com/assets/hm-product.jpg',
+      imageUrls: ['https://image.hm.com/assets/hm-product.jpg'],
     });
+  });
+
+  it('does not offer unrelated page images when product metadata has no image', () => {
+    const html = `<html><head><meta property="og:title" content="Blue Shirt" /></head>
+      <body><img src="/logo.png"><img src="/recommendation.jpg"><img src="/tracking.gif"></body></html>`;
+    expect(extractProductMetadataForTest(
+      html,
+      new URL('https://shop.example/products/blue-shirt'),
+    ).imageUrls).toEqual([]);
   });
 });

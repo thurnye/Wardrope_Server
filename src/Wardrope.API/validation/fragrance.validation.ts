@@ -4,6 +4,7 @@ import { FRAGRANCE_CONCENTRATIONS } from '../../Wardrope.Core/Models/Fragrance/f
 const requiredText = (max: number) => z.string().trim().min(1).max(max);
 const optionalText = (max: number) => requiredText(max).nullable().optional();
 const noteSchema = requiredText(60);
+const sourceUrlSchema = z.string().trim().url().refine((value) => new URL(value).protocol === 'https:');
 const purchaseDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Purchase date must use YYYY-MM-DD.')
@@ -33,6 +34,7 @@ export const createFragranceBodySchema = z.object({
   purchaseDate: purchaseDateSchema.nullable().optional(),
   purchasePrice: priceSchema.nullable().optional(),
   available: z.boolean().optional(),
+  sourceUrl: sourceUrlSchema.nullable().optional(),
 }).strict();
 
 export const updateFragranceBodySchema = z.object({
@@ -48,6 +50,7 @@ export const updateFragranceBodySchema = z.object({
   purchaseDate: purchaseDateSchema.nullable().optional(),
   purchasePrice: priceSchema.nullable().optional(),
   available: z.boolean().optional(),
+  sourceUrl: sourceUrlSchema.nullable().optional(),
 }).strict().refine((value) => Object.keys(value).length > 0, {
   message: 'At least one fragrance field must be provided.',
 });

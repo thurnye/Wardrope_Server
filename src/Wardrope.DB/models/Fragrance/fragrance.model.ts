@@ -33,6 +33,7 @@ export interface FragranceDocument {
   purchaseDate: string | null;
   purchasePrice: FragrancePurchasePriceDocument | null;
   available: boolean;
+  sourceUrl?: string | null;
   image: FragranceImageDocument | null;
   createdAt: Date;
   updatedAt: Date;

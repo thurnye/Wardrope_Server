@@ -1,10 +1,7 @@
 import { lookup } from 'node:dns/promises';
 import type { IncomingMessage } from 'node:http';
 import { isIP } from 'node:net';
-import {
-  request as httpsRequest,
-  type RequestOptions,
-} from 'node:https';
+import { request as httpsRequest, type RequestOptions } from 'node:https';
 import {
   ProductSourceError,
   type DownloadedProductImage,
@@ -18,6 +15,8 @@ const MAX_REDIRECTS = 3;
 const MAX_ADDRESS_ATTEMPTS = 4;
 const REQUEST_TIMEOUT_MS = 8_000;
 const USER_AGENT = 'WardropeProductImporter/1.1';
+const FALLBACK_BROWSER_USER_AGENT =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
 interface BoundedResponse {
   finalUrl: URL;
@@ -31,7 +30,7 @@ interface ProductMetadata {
   colors: string[];
   materials: string[];
   categoryHint: string | null;
-  imageUrl: string | null;
+  imageUrls: string[];
 }
 
 interface PublicAddress {
@@ -50,7 +49,10 @@ function normalizedHostname(url: URL): string {
 
 function isPublicIpv4(address: string): boolean {
   const parts = address.split('.').map(Number);
-  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+  if (
+    parts.length !== 4 ||
+    parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)
+  ) {
     return false;
   }
 
@@ -80,7 +82,8 @@ function isPublicIpv6(address: string): boolean {
   if (/^fe[cdef]/.test(normalized)) return false;
   if (/^ff/.test(normalized)) return false;
   if (normalized.startsWith('2001:db8:')) return false;
-  if (normalized.startsWith('2001:0000:') || normalized.startsWith('2001:0:')) return false;
+  if (normalized.startsWith('2001:0000:') || normalized.startsWith('2001:0:'))
+    return false;
   if (normalized.startsWith('2002:')) return false;
   if (normalized.startsWith('64:ff9b:')) return false;
   return true;
@@ -98,32 +101,50 @@ function normalizeAndValidateUrl(raw: string): URL {
   try {
     url = new URL(raw);
   } catch {
-    throw new ProductSourceError('URL_NOT_ALLOWED', 'Product source URL is invalid.');
+    throw new ProductSourceError(
+      'URL_NOT_ALLOWED',
+      'Product source URL is invalid.',
+    );
   }
 
   if (url.protocol !== 'https:') {
-    throw new ProductSourceError('URL_NOT_ALLOWED', 'Product source URL must use HTTPS.');
+    throw new ProductSourceError(
+      'URL_NOT_ALLOWED',
+      'Product source URL must use HTTPS.',
+    );
   }
   if (url.username || url.password) {
-    throw new ProductSourceError('URL_NOT_ALLOWED', 'Product source URL must not contain credentials.');
+    throw new ProductSourceError(
+      'URL_NOT_ALLOWED',
+      'Product source URL must not contain credentials.',
+    );
   }
   if (url.port && url.port !== '443') {
-    throw new ProductSourceError('URL_NOT_ALLOWED', 'Product source URL must use the standard HTTPS port.');
+    throw new ProductSourceError(
+      'URL_NOT_ALLOWED',
+      'Product source URL must use the standard HTTPS port.',
+    );
   }
 
   const hostname = normalizedHostname(url);
   if (isIP(hostname)) {
-    throw new ProductSourceError('URL_NOT_ALLOWED', 'Literal IP product source URLs are not allowed.');
+    throw new ProductSourceError(
+      'URL_NOT_ALLOWED',
+      'Literal IP product source URLs are not allowed.',
+    );
   }
   if (
-    hostname === 'localhost'
-    || hostname.endsWith('.localhost')
-    || hostname.endsWith('.local')
-    || hostname.endsWith('.internal')
-    || hostname === 'metadata.amazonaws.com'
-    || hostname === 'metadata.google.internal'
+    hostname === 'localhost' ||
+    hostname.endsWith('.localhost') ||
+    hostname.endsWith('.local') ||
+    hostname.endsWith('.internal') ||
+    hostname === 'metadata.amazonaws.com' ||
+    hostname === 'metadata.google.internal'
   ) {
-    throw new ProductSourceError('URL_NOT_ALLOWED', 'Product source host is not allowed.');
+    throw new ProductSourceError(
+      'URL_NOT_ALLOWED',
+      'Product source host is not allowed.',
+    );
   }
 
   url.hash = '';
@@ -136,30 +157,49 @@ function safeErrorCode(error: unknown): string | null {
   return typeof code === 'string' && /^[A-Z0-9_]+$/.test(code) ? code : null;
 }
 
-function classifyTransportFailure(error: unknown): { kind: TransportFailureKind; code: string | null } {
+function classifyTransportFailure(error: unknown): {
+  kind: TransportFailureKind;
+  code: string | null;
+} {
   const code = safeErrorCode(error);
-  if (code === 'ETIMEDOUT' || code === 'ESOCKETTIMEDOUT') return { kind: 'TIMEOUT', code };
-  if (code && (
-    code.startsWith('ERR_TLS_')
-    || code.startsWith('CERT_')
-    || code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE'
-    || code === 'DEPTH_ZERO_SELF_SIGNED_CERT'
-  )) {
+  if (code === 'ETIMEDOUT' || code === 'ESOCKETTIMEDOUT')
+    return { kind: 'TIMEOUT', code };
+  if (
+    code &&
+    (code.startsWith('ERR_TLS_') ||
+      code.startsWith('CERT_') ||
+      code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' ||
+      code === 'DEPTH_ZERO_SELF_SIGNED_CERT')
+  ) {
     return { kind: 'TLS', code };
   }
   return { kind: 'NETWORK', code };
 }
 
 function logSourceFailure(
-  kind: 'DNS' | 'TIMEOUT' | 'TLS' | 'NETWORK' | 'REMOTE_BLOCKED' | 'REMOTE_HTTP_ERROR' | 'REDIRECT_LIMIT',
+  kind:
+    | 'DNS'
+    | 'TIMEOUT'
+    | 'TLS'
+    | 'NETWORK'
+    | 'REMOTE_BLOCKED'
+    | 'REMOTE_HTTP_ERROR'
+    | 'REDIRECT_LIMIT',
   url: URL,
-  details: { statusCode?: number; family?: 4 | 6; attempt?: number; code?: string | null } = {},
+  details: {
+    statusCode?: number;
+    family?: 4 | 6;
+    attempt?: number;
+    code?: string | null;
+  } = {},
 ): void {
   const diagnostic = {
     event: 'product_source_request_failed',
     kind,
     hostname: normalizedHostname(url),
-    ...(details.statusCode !== undefined ? { statusCode: details.statusCode } : {}),
+    ...(details.statusCode !== undefined
+      ? { statusCode: details.statusCode }
+      : {}),
     ...(details.family !== undefined ? { addressFamily: details.family } : {}),
     ...(details.attempt !== undefined ? { attempt: details.attempt } : {}),
     ...(details.code ? { code: details.code } : {}),
@@ -171,10 +211,16 @@ function validateAndOrderPublicAddresses(
   addresses: ReadonlyArray<{ address: string; family: number }>,
 ): PublicAddress[] {
   if (addresses.length === 0) {
-    throw new ProductSourceError('SOURCE_UNAVAILABLE', 'Product source host could not be resolved.');
+    throw new ProductSourceError(
+      'SOURCE_UNAVAILABLE',
+      'Product source host could not be resolved.',
+    );
   }
   if (addresses.some(({ address }) => !isPublicIp(address))) {
-    throw new ProductSourceError('URL_NOT_ALLOWED', 'Product source host is not publicly routable.');
+    throw new ProductSourceError(
+      'URL_NOT_ALLOWED',
+      'Product source host is not publicly routable.',
+    );
   }
 
   const unique = new Map<string, PublicAddress>();
@@ -186,9 +232,14 @@ function validateAndOrderPublicAddresses(
     });
   }
 
-  const ordered = [...unique.values()].sort((left, right) => left.family - right.family);
+  const ordered = [...unique.values()].sort(
+    (left, right) => left.family - right.family,
+  );
   if (ordered.length === 0) {
-    throw new ProductSourceError('SOURCE_UNAVAILABLE', 'Product source host could not be resolved.');
+    throw new ProductSourceError(
+      'SOURCE_UNAVAILABLE',
+      'Product source host could not be resolved.',
+    );
   }
   return ordered.slice(0, MAX_ADDRESS_ATTEMPTS);
 }
@@ -199,11 +250,16 @@ export function validateAndOrderPublicAddressesForTest(
   return validateAndOrderPublicAddresses(addresses);
 }
 
-export function classifyTransportFailureForTest(error: unknown): { kind: TransportFailureKind; code: string | null } {
+export function classifyTransportFailureForTest(error: unknown): {
+  kind: TransportFailureKind;
+  code: string | null;
+} {
   return classifyTransportFailure(error);
 }
 
-async function resolvePinnedPublicAddresses(url: URL): Promise<PublicAddress[]> {
+async function resolvePinnedPublicAddresses(
+  url: URL,
+): Promise<PublicAddress[]> {
   const hostname = normalizedHostname(url);
   try {
     const addresses = await lookup(hostname, { all: true, order: 'verbatim' });
@@ -211,7 +267,10 @@ async function resolvePinnedPublicAddresses(url: URL): Promise<PublicAddress[]> 
   } catch (error) {
     if (error instanceof ProductSourceError) throw error;
     logSourceFailure('DNS', url, { code: safeErrorCode(error) });
-    throw new ProductSourceError('SOURCE_UNAVAILABLE', 'Product source host could not be resolved.');
+    throw new ProductSourceError(
+      'SOURCE_UNAVAILABLE',
+      'Product source host could not be resolved.',
+    );
   }
 }
 
@@ -220,12 +279,20 @@ function responseContentType(header: string | string[] | undefined): string {
   return (value ?? '').split(';', 1)[0]?.trim().toLocaleLowerCase('en') ?? '';
 }
 
-function readBoundedBody(response: IncomingMessage, maxBytes: number): Promise<Buffer> {
+function readBoundedBody(
+  response: IncomingMessage,
+  maxBytes: number,
+): Promise<Buffer> {
   const contentLengthRaw = response.headers['content-length'];
-  const contentLength = Number(Array.isArray(contentLengthRaw) ? contentLengthRaw[0] : contentLengthRaw);
+  const contentLength = Number(
+    Array.isArray(contentLengthRaw) ? contentLengthRaw[0] : contentLengthRaw,
+  );
   if (Number.isFinite(contentLength) && contentLength > maxBytes) {
     response.destroy();
-    throw new ProductSourceError('SOURCE_TOO_LARGE', 'Remote response exceeds the import size limit.');
+    throw new ProductSourceError(
+      'SOURCE_TOO_LARGE',
+      'Remote response exceeds the import size limit.',
+    );
   }
 
   return new Promise((resolve, reject) => {
@@ -245,7 +312,12 @@ function readBoundedBody(response: IncomingMessage, maxBytes: number): Promise<B
       const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
       total += bytes.byteLength;
       if (total > maxBytes) {
-        fail(new ProductSourceError('SOURCE_TOO_LARGE', 'Remote response exceeds the import size limit.'));
+        fail(
+          new ProductSourceError(
+            'SOURCE_TOO_LARGE',
+            'Remote response exceeds the import size limit.',
+          ),
+        );
         return;
       }
       chunks.push(bytes);
@@ -256,13 +328,17 @@ function readBoundedBody(response: IncomingMessage, maxBytes: number): Promise<B
       resolve(Buffer.concat(chunks, total));
     });
     response.on('error', (error) => {
-      fail(error instanceof Error ? error : new Error('Remote response failed.'));
+      fail(
+        error instanceof Error ? error : new Error('Remote response failed.'),
+      );
     });
   });
 }
 
 function createTimeoutError(): NodeJS.ErrnoException {
-  const error = new Error('Product source request timed out.') as NodeJS.ErrnoException;
+  const error = new Error(
+    'Product source request timed out.',
+  ) as NodeJS.ErrnoException;
   error.code = 'ETIMEDOUT';
   return error;
 }
@@ -286,7 +362,8 @@ function requestPinnedAddress(
     maxHeaderSize: 16 * 1024,
     headers: {
       Host: url.host,
-      Accept: 'text/html,application/xhtml+xml,image/avif,image/webp,image/png,image/jpeg;q=0.9,*/*;q=0.1',
+      Accept:
+        'text/html,application/xhtml+xml,image/avif,image/webp,image/png,image/jpeg;q=0.9,*/*;q=0.1',
       'Accept-Encoding': 'identity',
       'Accept-Language': 'en-CA,en;q=0.9',
       'User-Agent': USER_AGENT,
@@ -301,13 +378,28 @@ function requestPinnedAddress(
       if ([301, 302, 303, 307, 308].includes(statusCode) && location) {
         response.resume();
         if (redirectsRemaining <= 0) {
-          logSourceFailure('REDIRECT_LIMIT', url, { family: pinned.family, attempt });
-          reject(new ProductSourceError('SOURCE_UNAVAILABLE', 'Product source redirected too many times.'));
+          logSourceFailure('REDIRECT_LIMIT', url, {
+            family: pinned.family,
+            attempt,
+          });
+          reject(
+            new ProductSourceError(
+              'SOURCE_UNAVAILABLE',
+              'Product source redirected too many times.',
+            ),
+          );
           return;
         }
 
         try {
-          resolve(await fetchPinned(new URL(location, url), maxBytes, redirectsRemaining - 1, deadlineAt));
+          resolve(
+            await fetchPinned(
+              new URL(location, url),
+              maxBytes,
+              redirectsRemaining - 1,
+              deadlineAt,
+            ),
+          );
         } catch (error) {
           reject(error);
         }
@@ -316,14 +408,24 @@ function requestPinnedAddress(
 
       if (statusCode < 200 || statusCode >= 300) {
         response.resume();
-        const kind = statusCode === 403 || statusCode === 429 ? 'REMOTE_BLOCKED' : 'REMOTE_HTTP_ERROR';
-        logSourceFailure(kind, url, { statusCode, family: pinned.family, attempt });
-        reject(new ProductSourceError(
-          'SOURCE_UNAVAILABLE',
-          kind === 'REMOTE_BLOCKED'
-            ? 'Product source rejected the request.'
-            : 'Product source returned an unsuccessful response.',
-        ));
+        const kind =
+          statusCode === 403 || statusCode === 429
+            ? 'REMOTE_BLOCKED'
+            : 'REMOTE_HTTP_ERROR';
+        logSourceFailure(kind, url, {
+          statusCode,
+          family: pinned.family,
+          attempt,
+        });
+        reject(
+          new ProductSourceError(
+            'SOURCE_UNAVAILABLE',
+            kind === 'REMOTE_BLOCKED'
+              ? 'Product source rejected the request.'
+              : 'Product source returned an unsuccessful response.',
+            { statusCode, remoteBlocked: kind === 'REMOTE_BLOCKED' },
+          ),
+        );
         return;
       }
 
@@ -347,11 +449,177 @@ function requestPinnedAddress(
   });
 }
 
+async function configureBrowserPage(page: unknown): Promise<void> {
+  const browserPage = page as {
+    setExtraHTTPHeaders(headers: Record<string, string>): Promise<void>;
+    addInitScript(script: () => void): Promise<void>;
+  };
+
+  await browserPage.setExtraHTTPHeaders({
+    'Accept-Language': 'en-CA,en;q=0.9',
+  });
+  await browserPage.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', {
+      get: () => false,
+    });
+    Object.defineProperty(navigator, 'languages', {
+      get: () => ['en-CA', 'en'],
+    });
+    Object.defineProperty(navigator, 'plugins', {
+      get: () => [1, 2, 3, 4, 5],
+    });
+  });
+}
+
+async function browserFetchHtml(
+  rawUrl: string | URL,
+  maxBytes: number,
+  deadlineAt: number,
+): Promise<BoundedResponse> {
+  const url = normalizeAndValidateUrl(String(rawUrl));
+  const remainingMs = Math.max(1, deadlineAt - Date.now());
+  const { chromium } = await import('playwright-chromium');
+  const launchOptions: Parameters<typeof chromium.launch>[0] = {
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-blink-features=AutomationControlled',
+    ],
+  };
+  if (process.env.PRODUCT_SOURCE_BROWSER_PROXY_URL) {
+    launchOptions.proxy = {
+      server: process.env.PRODUCT_SOURCE_BROWSER_PROXY_URL,
+    };
+  }
+  const browser = await chromium.launch(launchOptions);
+  let page: Awaited<ReturnType<typeof browser.newPage>> | null = null;
+
+  try {
+    page = await browser.newPage({ userAgent: FALLBACK_BROWSER_USER_AGENT });
+    await configureBrowserPage(page);
+    const response = await page.goto(url.toString(), {
+      timeout: remainingMs,
+      waitUntil: 'domcontentloaded',
+    });
+
+    if (!response) {
+      throw new ProductSourceError(
+        'SOURCE_UNAVAILABLE',
+        'Product source request failed.',
+      );
+    }
+
+    const status = response.status();
+    if (status < 200 || status >= 300) {
+      const remoteBlocked = status === 403 || status === 429;
+      throw new ProductSourceError(
+        'SOURCE_UNAVAILABLE',
+        remoteBlocked
+          ? 'Product source rejected the request.'
+          : 'Product source returned an unsuccessful response.',
+        { statusCode: status, remoteBlocked },
+      );
+    }
+
+    const html = await page.content();
+    const body = Buffer.from(html, 'utf8');
+    if (body.byteLength > maxBytes) {
+      throw new ProductSourceError(
+        'SOURCE_TOO_LARGE',
+        'Remote response exceeds the import size limit.',
+      );
+    }
+
+    const finalUrl = normalizeAndValidateUrl(page.url());
+    return {
+      finalUrl,
+      contentType: 'text/html',
+      body,
+    };
+  } finally {
+    if (page) await page.close();
+    await browser.close();
+  }
+}
+
+async function browserFetchBinary(
+  rawUrl: string | URL,
+  maxBytes: number,
+  deadlineAt: number,
+): Promise<BoundedResponse> {
+  const url = normalizeAndValidateUrl(String(rawUrl));
+  const remainingMs = Math.max(1, deadlineAt - Date.now());
+  const { chromium } = await import('playwright-chromium');
+  const launchOptions: Parameters<typeof chromium.launch>[0] = {
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-blink-features=AutomationControlled',
+    ],
+  };
+  if (process.env.PRODUCT_SOURCE_BROWSER_PROXY_URL) {
+    launchOptions.proxy = {
+      server: process.env.PRODUCT_SOURCE_BROWSER_PROXY_URL,
+    };
+  }
+  const browser = await chromium.launch(launchOptions);
+  let page: Awaited<ReturnType<typeof browser.newPage>> | null = null;
+
+  try {
+    page = await browser.newPage({ userAgent: FALLBACK_BROWSER_USER_AGENT });
+    await configureBrowserPage(page);
+    const response = await page.goto(url.toString(), {
+      timeout: remainingMs,
+      waitUntil: 'domcontentloaded',
+    });
+
+    if (!response) {
+      throw new ProductSourceError(
+        'SOURCE_UNAVAILABLE',
+        'Product source request failed.',
+      );
+    }
+
+    const status = response.status();
+    if (status < 200 || status >= 300) {
+      const remoteBlocked = status === 403 || status === 429;
+      throw new ProductSourceError(
+        'SOURCE_UNAVAILABLE',
+        remoteBlocked
+          ? 'Product source rejected the request.'
+          : 'Product source returned an unsuccessful response.',
+        { statusCode: status, remoteBlocked },
+      );
+    }
+
+    const body = await response.body();
+    if (body.byteLength > maxBytes) {
+      throw new ProductSourceError(
+        'SOURCE_TOO_LARGE',
+        'Remote response exceeds the import size limit.',
+      );
+    }
+
+    const finalUrl = normalizeAndValidateUrl(page.url());
+    return {
+      finalUrl,
+      contentType: responseContentType(response.headers()['content-type']),
+      body: Buffer.from(body),
+    };
+  } finally {
+    if (page) await page.close();
+    await browser.close();
+  }
+}
+
 async function fetchPinned(
   rawUrl: string | URL,
   maxBytes: number,
   redirectsRemaining = MAX_REDIRECTS,
   deadlineAt = Date.now() + REQUEST_TIMEOUT_MS,
+  allowBrowserFallback = false,
 ): Promise<BoundedResponse> {
   const url = normalizeAndValidateUrl(String(rawUrl));
   const addresses = await resolvePinnedPublicAddresses(url);
@@ -372,7 +640,16 @@ async function fetchPinned(
         index + 1,
       );
     } catch (error) {
-      if (error instanceof ProductSourceError) throw error;
+      if (error instanceof ProductSourceError) {
+        if (
+          allowBrowserFallback &&
+          error.reason === 'SOURCE_UNAVAILABLE' &&
+          error.metadata?.remoteBlocked
+        ) {
+          return await browserFetchHtml(url, maxBytes, deadlineAt);
+        }
+        throw error;
+      }
       lastTransportError = error;
       const failure = classifyTransportFailure(error);
       logSourceFailure(failure.kind, url, {
@@ -401,7 +678,9 @@ function decodeHtml(value: string): string {
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>')
     .replace(/&amp;/gi, '&')
-    .replace(/&#(\d+);/g, (_match, code: string) => String.fromCodePoint(Number(code)))
+    .replace(/&#(\d+);/g, (_match, code: string) =>
+      String.fromCodePoint(Number(code)),
+    )
     .trim();
 }
 
@@ -421,7 +700,9 @@ function extractMeta(html: string): Map<string, string> {
   const meta = new Map<string, string>();
   for (const tag of html.match(/<meta\b[^>]*>/gi) ?? []) {
     const attributes = parseTagAttributes(tag);
-    const key = (attributes.property ?? attributes.name)?.toLocaleLowerCase('en');
+    const key = (attributes.property ?? attributes.name)?.toLocaleLowerCase(
+      'en',
+    );
     const content = attributes.content;
     if (key && content && !meta.has(key)) meta.set(key, content);
   }
@@ -441,7 +722,9 @@ function findProductNode(value: unknown): Record<string, unknown> | null {
   const object = value as Record<string, unknown>;
   const type = object['@type'];
   const types = Array.isArray(type) ? type : [type];
-  if (types.some((entry) => typeof entry === 'string' && /product/i.test(entry))) {
+  if (
+    types.some((entry) => typeof entry === 'string' && /product/i.test(entry))
+  ) {
     return object;
   }
 
@@ -453,7 +736,8 @@ function findProductNode(value: unknown): Record<string, unknown> | null {
 }
 
 function extractJsonLdProduct(html: string): Record<string, unknown> | null {
-  const pattern = /<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  const pattern =
+    /<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(html))) {
     const body = match[1]?.trim();
@@ -484,71 +768,151 @@ function brandValue(value: unknown): string | null {
 function stringList(value: unknown): string[] {
   const values = Array.isArray(value) ? value : [value];
   return values
-    .flatMap((entry) => typeof entry === 'string' ? entry.split(/[,;|]/) : [])
+    .flatMap((entry) => (typeof entry === 'string' ? entry.split(/[,;|]/) : []))
     .map(decodeHtml)
     .filter(Boolean);
 }
 
-function firstImageUrl(value: unknown): string | null {
-  if (typeof value === 'string') return value.trim() || null;
-  if (Array.isArray(value)) {
-    for (const entry of value) {
-      const found = firstImageUrl(entry);
-      if (found) return found;
-    }
-    return null;
-  }
+function imageCandidatesFromValue(value: unknown): string[] {
+  if (typeof value === 'string') return [value.trim()].filter(Boolean);
+  if (Array.isArray(value)) return value.flatMap(imageCandidatesFromValue);
   if (value && typeof value === 'object') {
     const object = value as Record<string, unknown>;
-    return firstImageUrl(object.contentUrl ?? object.url);
+    return imageCandidatesFromValue(
+      object.contentUrl ??
+        object.url ??
+        object['@id'] ??
+        object.image ??
+        object.thumbnailUrl,
+    );
   }
-  return null;
+  return [];
 }
 
-export function extractProductMetadataForTest(html: string, pageUrl: URL): ProductMetadata {
+function parseSrcset(srcset: string): string[] {
+  return srcset
+    .split(',')
+    .map((part) => part.trim().split(/\s+/)[0])
+    .filter((value): value is string => Boolean(value));
+}
+
+export function extractProductMetadataForTest(
+  html: string,
+  pageUrl: URL,
+): ProductMetadata {
   const product = extractJsonLdProduct(html);
   const meta = extractMeta(html);
 
   const titleMatch = html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1];
-  const name = stringValue(product?.name)
-    ?? meta.get('og:title')
-    ?? meta.get('twitter:title')
-    ?? (titleMatch ? decodeHtml(titleMatch.replace(/<[^>]+>/g, ' ')) : null);
-  const brand = brandValue(product?.brand)
-    ?? meta.get('product:brand')
-    ?? meta.get('og:brand')
-    ?? null;
+  const name =
+    stringValue(product?.name) ??
+    meta.get('og:title') ??
+    meta.get('twitter:title') ??
+    (titleMatch ? decodeHtml(titleMatch.replace(/<[^>]+>/g, ' ')) : null);
+  const brand =
+    brandValue(product?.brand) ??
+    meta.get('product:brand') ??
+    meta.get('og:brand') ??
+    null;
   const colors = stringList(product?.color ?? meta.get('product:color'));
-  const materials = stringList(product?.material ?? meta.get('product:material'));
+  const materials = stringList(
+    product?.material ?? meta.get('product:material'),
+  );
   const categoryHint = stringValue(product?.category) ?? null;
-  const rawImage = firstImageUrl(product?.image)
-    ?? meta.get('og:image:secure_url')
-    ?? meta.get('og:image')
-    ?? meta.get('twitter:image')
-    ?? null;
 
-  let imageUrl: string | null = null;
-  if (rawImage) {
-    try {
-      imageUrl = normalizeAndValidateUrl(new URL(rawImage, pageUrl).toString()).toString();
-    } catch {
-      imageUrl = null;
-    }
+  const structuredProductImages = imageCandidatesFromValue(product?.image);
+  const rawImageValues = structuredProductImages.length > 0
+    ? structuredProductImages
+    : [
+        meta.get('og:image:secure_url'),
+        meta.get('og:image'),
+        meta.get('twitter:image'),
+      ].filter(Boolean) as string[];
+
+  const imageUrls = Array.from(
+    new Set(
+      rawImageValues
+        .map((rawImage) => {
+          try {
+            return normalizeAndValidateUrl(
+              new URL(rawImage, pageUrl).toString(),
+            ).toString();
+          } catch {
+            return null;
+          }
+        })
+        .filter((url): url is string => Boolean(url)),
+    ),
+  );
+
+  return {
+    name,
+    brand,
+    colors,
+    materials,
+    categoryHint,
+    imageUrls,
+  };
+}
+
+/**
+ * Retailers commonly rotate signed query strings between preview and save.
+ * Resolve a submitted choice back to the freshly inspected, server-trusted
+ * candidate instead of fetching the browser value directly.
+ */
+export function selectProductImageUrlForTest(
+  discoveredUrls: string[],
+  selectedUrl?: string,
+): string | undefined {
+  if (!selectedUrl) return discoveredUrls[0];
+
+  const exact = discoveredUrls.find((url) => url === selectedUrl);
+  if (exact) return exact;
+
+  try {
+    const selected = new URL(selectedUrl);
+    return discoveredUrls.find((candidate) => {
+      const discovered = new URL(candidate);
+      return discovered.origin === selected.origin &&
+        discovered.pathname === selected.pathname;
+    });
+  } catch {
+    return undefined;
   }
-
-  return { name, brand, colors, materials, categoryHint, imageUrl };
 }
 
 export class HttpProductSourceService implements IProductSourceService {
   async inspect(sourceUrl: string): Promise<ProductSourceSnapshot> {
-    const response = await fetchPinned(sourceUrl, MAX_HTML_BYTES);
-    if (!['text/html', 'application/xhtml+xml'].includes(response.contentType)) {
-      throw new ProductSourceError('UNSUPPORTED_CONTENT', 'Product source must return HTML.');
+    const response = await fetchPinned(
+      sourceUrl,
+      MAX_HTML_BYTES,
+      MAX_REDIRECTS,
+      Date.now() + REQUEST_TIMEOUT_MS,
+      true,
+    );
+    if (
+      !['text/html', 'application/xhtml+xml'].includes(response.contentType)
+    ) {
+      throw new ProductSourceError(
+        'UNSUPPORTED_CONTENT',
+        'Product source must return HTML.',
+      );
     }
 
-    const metadata = extractProductMetadataForTest(response.body.toString('utf8'), response.finalUrl);
-    if (!metadata.name && !metadata.brand && !metadata.categoryHint && !metadata.imageUrl) {
-      throw new ProductSourceError('PRODUCT_NOT_RECOGNIZED', 'Product metadata could not be recognized.');
+    const metadata = extractProductMetadataForTest(
+      response.body.toString('utf8'),
+      response.finalUrl,
+    );
+    if (
+      !metadata.name &&
+      !metadata.brand &&
+      !metadata.categoryHint &&
+      metadata.imageUrls.length === 0
+    ) {
+      throw new ProductSourceError(
+        'PRODUCT_NOT_RECOGNIZED',
+        'Product metadata could not be recognized.',
+      );
     }
 
     return {
@@ -557,20 +921,66 @@ export class HttpProductSourceService implements IProductSourceService {
     };
   }
 
-  async downloadPrimaryImage(sourceUrl: string): Promise<DownloadedProductImage> {
+  async downloadPrimaryImage(
+    sourceUrl: string,
+    imageUrl?: string,
+  ): Promise<DownloadedProductImage> {
     const snapshot = await this.inspect(sourceUrl);
-    if (!snapshot.imageUrl) {
-      throw new ProductSourceError('IMAGE_NOT_FOUND', 'Product source does not expose a primary image.');
+    const selectedImageUrl = selectProductImageUrlForTest(
+      snapshot.imageUrls,
+      imageUrl,
+    );
+
+    if (!selectedImageUrl) {
+      throw new ProductSourceError(
+        'IMAGE_NOT_FOUND',
+        'Product source does not expose a primary image.',
+      );
     }
 
-    const response = await fetchPinned(snapshot.imageUrl, MAX_IMAGE_BYTES);
-    if (!response.contentType.startsWith('image/') && response.contentType !== 'application/octet-stream') {
-      throw new ProductSourceError('UNSUPPORTED_CONTENT', 'Product image source did not return image content.');
-    }
+    try {
+      const response = await fetchPinned(selectedImageUrl, MAX_IMAGE_BYTES);
+      if (
+        !response.contentType.startsWith('image/') &&
+        response.contentType !== 'application/octet-stream'
+      ) {
+        throw new ProductSourceError(
+          'UNSUPPORTED_CONTENT',
+          'Product image source did not return image content.',
+        );
+      }
 
-    return {
-      bytes: response.body,
-      declaredContentType: response.contentType || null,
-    };
+      return {
+        bytes: response.body,
+        declaredContentType: response.contentType || null,
+      };
+    } catch (error) {
+      if (
+        error instanceof ProductSourceError &&
+        error.reason === 'SOURCE_UNAVAILABLE' &&
+        error.metadata?.remoteBlocked
+      ) {
+        const response = await browserFetchBinary(
+          selectedImageUrl,
+          MAX_IMAGE_BYTES,
+          Date.now() + REQUEST_TIMEOUT_MS,
+        );
+        if (
+          !response.contentType.startsWith('image/') &&
+          response.contentType !== 'application/octet-stream'
+        ) {
+          throw new ProductSourceError(
+            'UNSUPPORTED_CONTENT',
+            'Product image source did not return image content.',
+          );
+        }
+
+        return {
+          bytes: response.body,
+          declaredContentType: response.contentType || null,
+        };
+      }
+      throw error;
+    }
   }
 }

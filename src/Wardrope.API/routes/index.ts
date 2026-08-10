@@ -3,6 +3,7 @@ import type { IAuthService } from '../../Wardrope.Core/services/ServicesInterfac
 import type { IDressMeService } from '../../Wardrope.Core/services/ServicesInterface/DressMe/dress-me.service.interface';
 import type { IFragranceService } from '../../Wardrope.Core/services/ServicesInterface/Fragrance/fragrance.service.interface';
 import type { IFragranceImageService } from '../../Wardrope.Core/services/ServicesInterface/FragranceImage/fragrance-image.service.interface';
+import type { IFragranceImportService } from '../../Wardrope.Core/services/ServicesInterface/FragranceImport/fragrance-import.service.interface';
 import type { IHealthService } from '../../Wardrope.Core/services/ServicesInterface/Health/health.service.interface';
 import type {
   IOutfitService,
@@ -16,6 +17,7 @@ import { createAuthRoutes } from './AuthRoute/auth.routes';
 import { createDressMeRoutes } from './DressMeRoute/dress-me.routes';
 import { createFragranceRoutes } from './FragranceRoute/fragrance.routes';
 import { createFragranceImageRoutes } from './FragranceImageRoute/fragrance-image.routes';
+import { createFragranceImportRoutes } from './FragranceImportRoute/fragrance-import.routes';
 import { createHealthRoutes } from './HealthRoute/health.routes';
 import { createOutfitRoutes } from './OutfitRoute/outfit.routes';
 import { createPhysicalProfileRoutes } from './PhysicalProfileRoute/physical-profile.routes';
@@ -42,6 +44,7 @@ export function createApiRouter(
   outfitService?: IOutfitService,
   wearHistoryService?: IWearHistoryService,
   dressMeService?: IDressMeService,
+  fragranceImportService?: IFragranceImportService,
 ): Router {
   if (!physicalProfileService && process.env.NODE_ENV !== 'test') {
     throw new Error('Physical Profile service is required to create the Wardrope API router.');
@@ -79,6 +82,7 @@ export function createApiRouter(
   if (fragranceService && fragranceImageService) {
     router.use('/fragrances', createFragranceImageRoutes(fragranceImageService, fragranceService, authService));
   }
+  if (fragranceImportService) router.use('/fragrances', createFragranceImportRoutes(fragranceImportService, authService));
   if (outfitService && wearHistoryService) {
     router.use('/outfits', createOutfitRoutes(outfitService, wearHistoryService, authService));
   }

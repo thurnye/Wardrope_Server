@@ -75,7 +75,7 @@ export class FragranceImageService implements IFragranceImageService {
         body: processed.bytes,
         contentType: processed.contentType,
         fileExtension: 'webp',
-        pathSegments: ['fragrances', userId, fragranceId],
+        pathSegments: ['Frangrances'],
       });
     } catch {
       this.logger.error('fragrance_image_store_failed', { fragranceId });

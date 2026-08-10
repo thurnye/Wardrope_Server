@@ -125,10 +125,10 @@ describe('WardrobeRepository ownership filters', () => {
     expect(hex(filter?._id)).toBe(ITEM_ID);
     expect(hex(filter?.userId)).toBe(USER_ID);
     expect(filter?.$or).toEqual([
-      { image: null },
-      { image: { $exists: false } },
+      { images: { $size: 0 } },
+      { images: { $exists: false } },
     ]);
-    expect(update?.$set?.image).toMatchObject({
+    expect(update?.$set?.images?.[0]).toMatchObject({
       objectKey: storedImage.objectKey,
       contentType: 'image/webp',
     });
@@ -141,14 +141,14 @@ describe('WardrobeRepository ownership filters', () => {
     const replaceFilter = collection.updateOne.mock.calls[0]?.[0];
     expect(hex(replaceFilter?._id)).toBe(ITEM_ID);
     expect(hex(replaceFilter?.userId)).toBe(USER_ID);
-    expect(replaceFilter?.['image.objectKey']).toBe('wardrobe/old.webp');
+    expect(replaceFilter?.['images.0.objectKey']).toBe('wardrobe/old.webp');
 
     collection.updateOne.mockClear();
     await repository.clearImage(USER_ID, ITEM_ID, 'wardrobe/new.webp');
     const clearFilter = collection.updateOne.mock.calls[0]?.[0];
     expect(hex(clearFilter?._id)).toBe(ITEM_ID);
     expect(hex(clearFilter?.userId)).toBe(USER_ID);
-    expect(clearFilter?.['image.objectKey']).toBe('wardrobe/new.webp');
+    expect(clearFilter?.['images.0.objectKey']).toBe('wardrobe/new.webp');
   });
 
   it('returns the deleted record through the lifecycle delete operation using owner scope', async () => {

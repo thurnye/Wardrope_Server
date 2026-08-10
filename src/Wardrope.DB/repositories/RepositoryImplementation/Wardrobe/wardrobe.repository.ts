@@ -59,7 +59,7 @@ function mapRecord(document: WardrobeItemDocument): WardrobeItemRecord {
     size: document.size,
     favorite: document.favorite,
     sourceUrl: document.sourceUrl ?? null,
-    image: mapImage(document.image),
+    images: document.images.map(mapImage).filter((image): image is WardrobeStoredImageRecord => image !== null),
     createdAt: document.createdAt,
     updatedAt: document.updatedAt,
   };
@@ -85,14 +85,11 @@ function imageCompareFilter(
   const filter: Filter<WardrobeItemDocument> = { _id, userId };
 
   if (expectedObjectKey === null) {
-    filter.$or = [
-      { image: null },
-      { image: { $exists: false } },
-    ];
+    filter.$or = [{ images: { $size: 0 } }, { images: { $exists: false } }];
     return filter;
   }
 
-  Object.assign(filter, { 'image.objectKey': expectedObjectKey });
+  Object.assign(filter, { 'images.0.objectKey': expectedObjectKey });
   return filter;
 }
 
@@ -126,7 +123,7 @@ export class WardrobeRepository implements IWardrobeRepository, IWardrobeImageRe
       size: input.size ?? null,
       favorite: input.favorite ?? false,
       sourceUrl: input.sourceUrl ?? null,
-      image: null,
+      images: [],
       createdAt: now,
       updatedAt: now,
     };
@@ -250,7 +247,7 @@ export class WardrobeRepository implements IWardrobeRepository, IWardrobeImageRe
       imageCompareFilter(_id, ownerId, expectedObjectKey),
       {
         $set: {
-          image: toImageDocument(image),
+          images: [toImageDocument(image)],
           updatedAt: new Date(),
         },
       },
@@ -260,6 +257,32 @@ export class WardrobeRepository implements IWardrobeRepository, IWardrobeImageRe
       return null;
     }
 
+    const updated = await this.collection.findOne({ _id, userId: ownerId });
+    return updated ? mapRecord(updated) : null;
+  }
+
+  async replaceImages(
+    userId: string,
+    itemId: string,
+    expectedObjectKeys: string[],
+    images: WardrobeStoredImageRecord[],
+  ): Promise<WardrobeItemRecord | null> {
+    const ownerId = parseObjectId(userId);
+    const _id = parseObjectId(itemId);
+    if (!ownerId || !_id || images.length === 0) return null;
+
+    const current = await this.collection.findOne({ _id, userId: ownerId });
+    if (!current) return null;
+    const currentKeys = current.images.map((image) => image.objectKey);
+    if (currentKeys.length !== expectedObjectKeys.length ||
+        currentKeys.some((key, index) => key !== expectedObjectKeys[index])) return null;
+
+    const documents = images.map(toImageDocument);
+    const result = await this.collection.updateOne(
+      { _id, userId: ownerId, updatedAt: current.updatedAt },
+      { $set: { images: documents, updatedAt: new Date() } },
+    );
+    if (result.matchedCount !== 1) return null;
     const updated = await this.collection.findOne({ _id, userId: ownerId });
     return updated ? mapRecord(updated) : null;
   }
@@ -280,7 +303,7 @@ export class WardrobeRepository implements IWardrobeRepository, IWardrobeImageRe
       imageCompareFilter(_id, ownerId, expectedObjectKey),
       {
         $set: {
-          image: null,
+          images: [],
           updatedAt: new Date(),
         },
       },

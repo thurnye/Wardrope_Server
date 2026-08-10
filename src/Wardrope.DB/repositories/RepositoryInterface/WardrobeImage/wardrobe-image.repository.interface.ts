@@ -4,6 +4,12 @@ import type {
 } from '../Wardrobe/wardrobe.repository.interface';
 
 export interface IWardrobeImageRepository {
+  replaceImages?(
+    userId: string,
+    itemId: string,
+    expectedObjectKeys: string[],
+    images: WardrobeStoredImageRecord[],
+  ): Promise<WardrobeItemRecord | null>;
   replaceImage(
     userId: string,
     itemId: string,

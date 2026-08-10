@@ -106,6 +106,7 @@ export function createWardrobeImageRoutes(
 
   router.use(authenticate);
   router.get('/:itemId/image', controller.read);
+  router.get('/:itemId/images/:imageIndex', controller.read);
   router.put(
     '/:itemId/image',
     requireCsrf,

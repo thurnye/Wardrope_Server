@@ -33,10 +33,17 @@ function authContext(): AuthenticatedRequestContext {
 }
 
 const authService: IAuthService = {
-  register: async (_request: RegisterRequestDto) => ({ ok: false, reason: 'EMAIL_UNAVAILABLE' }),
-  login: async (_request: LoginRequestDto) => ({ ok: false, reason: 'INVALID_CREDENTIALS' }),
+  register: async (_request: RegisterRequestDto) => ({
+    ok: false,
+    reason: 'EMAIL_UNAVAILABLE',
+  }),
+  login: async (_request: LoginRequestDto) => ({
+    ok: false,
+    reason: 'INVALID_CREDENTIALS',
+  }),
   getSession: async (): Promise<SessionStatusDto> => ({ authenticated: false }),
-  authenticate: async (sessionToken) => sessionToken === SESSION ? authContext() : null,
+  authenticate: async (sessionToken) =>
+    sessionToken === SESSION ? authContext() : null,
   verifyCsrf: (context, csrfToken) => context.csrfTokenHash === csrfToken,
   logout: async () => undefined,
 };
@@ -57,7 +64,9 @@ const healthService: IHealthService = {
 };
 
 const wardrobeService: IWardrobeService = {
-  create: async () => { throw new Error('not used'); },
+  create: async () => {
+    throw new Error('not used');
+  },
   list: async (_userId, query) => ({
     items: [],
     pagination: {
@@ -78,17 +87,22 @@ const productImportService: IProductImportService = {
 };
 
 function buildApp() {
-  return createApp(createApiRouter(
-    healthService,
-    authService,
-    wardrobeService,
-    undefined,
-    undefined,
-    productImportService,
-  ));
+  return createApp(
+    createApiRouter(
+      healthService,
+      authService,
+      wardrobeService,
+      undefined,
+      undefined,
+      productImportService,
+    ),
+  );
 }
 
-function asUser<T extends { set(field: string, value: string): T }>(req: T, csrf?: string): T {
+function asUser<T extends { set(field: string, value: string): T }>(
+  req: T,
+  csrf?: string,
+): T {
   req.set('Origin', 'http://localhost:5173');
   req.set('Cookie', `wardrope_session=${SESSION}`);
   if (csrf) req.set('X-CSRF-Token', csrf);
@@ -132,7 +146,10 @@ describe('Wardrope product link import API', () => {
       request(buildApp()).post('/api/v1/wardrobe/import-preview'),
       CSRF,
     )
-      .send({ sourceUrl: 'https://shop.example/product', imageUrl: 'https://attacker.example/a.jpg' })
+      .send({
+        sourceUrl: 'https://shop.example/product',
+        imageUrl: 'https://attacker.example/a.jpg',
+      })
       .expect(400);
 
     expect(productImportService.preview).not.toHaveBeenCalled();
@@ -150,6 +167,7 @@ describe('Wardrope product link import API', () => {
         suggestedCategory: 'footwear',
         suggestedSubcategory: 'Sneakers',
         imageAvailable: true,
+        imageUrls: ['https://shop.example/product/image-1.jpg'],
       },
     });
 
@@ -165,7 +183,9 @@ describe('Wardrope product link import API', () => {
       sourceUrl: 'https://shop.example/product',
       imageAvailable: true,
     });
-    expect(JSON.stringify(response.body)).not.toContain('imageUrl');
+    expect(response.body.data.imageUrls).toEqual([
+      'https://shop.example/product/image-1.jpg',
+    ]);
   });
 
   it('imports the source image using only the authenticated owner and stored item source link', async () => {
@@ -183,20 +203,25 @@ describe('Wardrope product link import API', () => {
         size: null,
         favorite: false,
         sourceUrl: 'https://shop.example/product',
-        image: null,
+        images: [],
         createdAt: '2026-08-09T12:00:00.000Z',
         updatedAt: '2026-08-09T12:00:00.000Z',
       },
     });
 
     await asUser(
-      request(buildApp()).post(`/api/v1/wardrobe/${ITEM_ID}/image/import-source`),
+      request(buildApp()).post(
+        `/api/v1/wardrobe/${ITEM_ID}/image/import-source`,
+      ),
       CSRF,
     )
       .send({})
       .expect(200);
 
-    expect(productImportService.importImage).toHaveBeenCalledWith(USER_ID, ITEM_ID);
+    expect(productImportService.importImage).toHaveBeenCalledWith(
+      USER_ID,
+      ITEM_ID,
+    );
   });
 
   it('rejects hostile browser origins before product import', async () => {

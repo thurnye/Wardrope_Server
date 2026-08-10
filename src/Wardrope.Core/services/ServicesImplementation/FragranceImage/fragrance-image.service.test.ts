@@ -80,7 +80,7 @@ function harness(current = record()) {
 }
 
 describe('FragranceImageService', () => {
-  it('stores new bottle images under fragrances/user/fragrance', async () => {
+  it('stores new bottle images in the shared fragrance folder without identifiers', async () => {
     const h = harness(record('wardrope/fragrances/old.webp'));
     const result = await h.service.replace(USER_ID, FRAGRANCE_ID, {
       bytes: Buffer.from('input'),
@@ -89,7 +89,7 @@ describe('FragranceImageService', () => {
 
     expect(result.ok).toBe(true);
     expect(h.storage.storePrivateFile).toHaveBeenCalledWith(expect.objectContaining({
-      pathSegments: ['fragrances', USER_ID, FRAGRANCE_ID],
+      pathSegments: ['Frangrances'],
       fileExtension: 'webp',
     }));
     expect(h.storage.deletePrivateFile).toHaveBeenCalledWith('wardrope/fragrances/old.webp');

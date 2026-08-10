@@ -35,6 +35,7 @@ export interface FragranceDto {
   purchaseDate: string | null;
   purchasePrice: FragrancePurchasePriceDto | null;
   available: boolean;
+  sourceUrl?: string | null;
   image: FragranceImageDto | null;
   createdAt: string;
   updatedAt: string;
@@ -53,6 +54,7 @@ export interface CreateFragranceDto {
   purchaseDate?: string | null | undefined;
   purchasePrice?: FragrancePurchasePriceDto | null | undefined;
   available?: boolean | undefined;
+  sourceUrl?: string | null | undefined;
 }
 
 export interface UpdateFragranceDto {
@@ -68,6 +70,15 @@ export interface UpdateFragranceDto {
   purchaseDate?: string | null | undefined;
   purchasePrice?: FragrancePurchasePriceDto | null | undefined;
   available?: boolean | undefined;
+  sourceUrl?: string | null | undefined;
+}
+
+export interface FragranceImportPreviewDto {
+  sourceUrl: string;
+  brand: string | null;
+  name: string | null;
+  concentration: FragranceConcentration | null;
+  imageUrls: string[];
 }
 
 export interface FragranceListQueryDto {

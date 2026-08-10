@@ -57,13 +57,20 @@ export class WardrobeImageController extends BaseApiController {
   };
 
   read = async (req: Request, res: Response) => {
-    const parsed = wardrobeItemIdParamsSchema.safeParse(req.params);
+    const parsed = wardrobeItemIdParamsSchema.safeParse({
+      itemId: req.params.itemId,
+    });
     if (!parsed.success) {
       return this.errorResponse(res, 400, 'VALIDATION_ERROR', 'The wardrobe item identifier is invalid.');
     }
 
     const { user } = getAuthenticatedContext(res);
-    const result = await this.wardrobeImageService.read(user.id, parsed.data.itemId);
+    const rawImageIndex = req.params.imageIndex;
+    const imageIndex = rawImageIndex === undefined ? 0 : Number(rawImageIndex);
+    if (!Number.isInteger(imageIndex) || imageIndex < 0 || imageIndex > 7) {
+      return this.errorResponse(res, 400, 'VALIDATION_ERROR', 'The wardrobe image index is invalid.');
+    }
+    const result = await this.wardrobeImageService.read(user.id, parsed.data.itemId, imageIndex);
 
     if (!result.ok) {
       if (result.reason === 'NOT_FOUND') {

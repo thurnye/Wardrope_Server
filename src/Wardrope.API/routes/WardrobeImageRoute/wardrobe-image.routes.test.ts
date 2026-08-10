@@ -23,13 +23,13 @@ const item = {
   pattern: 'solid' as const,
   size: '40R',
   favorite: false,
-  image: {
+  images: [{
     contentType: 'image/webp' as const,
     width: 800,
     height: 1200,
     sizeBytes: 13,
     updatedAt: '2026-08-09T06:00:00.000Z',
-  },
+  }],
   createdAt: '2026-08-09T05:00:00.000Z',
   updatedAt: '2026-08-09T06:00:00.000Z',
 };
@@ -91,7 +91,7 @@ function harness(itemExists = true) {
         lastModified: new Date('2026-08-09T06:00:00.000Z'),
       },
     }),
-    remove: vi.fn().mockResolvedValue({ ok: true, item: { ...item, image: null } }),
+    remove: vi.fn().mockResolvedValue({ ok: true, item: { ...item, images: [] } }),
   };
 
   return {
@@ -109,6 +109,13 @@ function authenticated<T extends { set(field: string, value: string): T }>(req: 
 }
 
 describe('Wardrope wardrobe image API', () => {
+  it('reads a selected image index without rejecting the additional route parameter', async () => {
+    const { app, imageService } = harness();
+    await authenticated(request(app).get(`/api/v1/wardrobe/${ITEM_ID}/images/2`), false)
+      .expect(200);
+    expect(imageService.read).toHaveBeenCalledWith(USER_ID, ITEM_ID, 2);
+  });
+
   it('requires authentication for private image reads', async () => {
     const { app } = harness();
     const response = await request(app)
@@ -202,6 +209,6 @@ describe('Wardrope wardrobe image API', () => {
     ).expect(200);
 
     expect(imageService.remove).toHaveBeenCalledWith(USER_ID, ITEM_ID);
-    expect(response.body.data.image).toBeNull();
+    expect(response.body.data.images).toEqual([]);
   });
 });

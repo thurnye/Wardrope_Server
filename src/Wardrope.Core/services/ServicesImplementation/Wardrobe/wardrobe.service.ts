@@ -142,7 +142,7 @@ export class WardrobeService implements IWardrobeService {
     }
 
     if (!this.imageLifecycle) {
-      if (current.image) {
+      if (current.images.length > 0) {
         throw new Error('Wardrobe image lifecycle services are required to delete image-backed items.');
       }
       return this.wardrobeRepository.delete(userId, itemId);
@@ -163,9 +163,10 @@ export class WardrobeService implements IWardrobeService {
       }
     }
 
-    if (deleted.image) {
+    const deletedImages = deleted.images;
+    for (const image of deletedImages) {
       try {
-        await this.imageLifecycle.fileStorage.deletePrivateFile(deleted.image.objectKey);
+        await this.imageLifecycle.fileStorage.deletePrivateFile(image.objectKey);
       } catch {
         this.imageLifecycle.logger.warn('wardrobe_image_cleanup_after_item_delete_failed', {
           itemId: deleted.id,

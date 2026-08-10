@@ -21,21 +21,102 @@ const CATEGORY_RULES: ReadonlyArray<{
   category: WardrobeCategory;
   keywords: readonly string[];
 }> = [
-  { category: 'footwear', keywords: ['shoe', 'sneaker', 'trainer', 'boot', 'loafer', 'heel', 'sandal', 'slipper'] },
-  { category: 'bag', keywords: ['bag', 'handbag', 'backpack', 'tote', 'clutch', 'purse', 'briefcase'] },
-  { category: 'jewelry', keywords: ['necklace', 'bracelet', 'earring', 'ring', 'pendant', 'jewelry', 'jewellery'] },
-  { category: 'outerwear', keywords: ['coat', 'jacket', 'blazer', 'parka', 'trench', 'overcoat', 'windbreaker'] },
-  { category: 'one-piece', keywords: ['dress', 'jumpsuit', 'romper', 'gown', 'overall'] },
-  { category: 'bottom', keywords: ['pant', 'trouser', 'jean', 'short', 'skirt', 'chino', 'legging'] },
-  { category: 'top', keywords: ['shirt', 't-shirt', 'tee', 'blouse', 'sweater', 'hoodie', 'top', 'polo', 'cardigan'] },
-  { category: 'accessory', keywords: ['belt', 'hat', 'cap', 'scarf', 'tie', 'sunglass', 'wallet', 'glove', 'watch'] },
+  {
+    category: 'footwear',
+    keywords: [
+      'shoe',
+      'sneaker',
+      'trainer',
+      'boot',
+      'loafer',
+      'heel',
+      'sandal',
+      'slipper',
+    ],
+  },
+  {
+    category: 'bag',
+    keywords: [
+      'bag',
+      'handbag',
+      'backpack',
+      'tote',
+      'clutch',
+      'purse',
+      'briefcase',
+    ],
+  },
+  {
+    category: 'jewelry',
+    keywords: [
+      'necklace',
+      'bracelet',
+      'earring',
+      'ring',
+      'pendant',
+      'jewelry',
+      'jewellery',
+    ],
+  },
+  {
+    category: 'outerwear',
+    keywords: [
+      'coat',
+      'jacket',
+      'blazer',
+      'parka',
+      'trench',
+      'overcoat',
+      'windbreaker',
+    ],
+  },
+  {
+    category: 'one-piece',
+    keywords: ['dress', 'jumpsuit', 'romper', 'gown', 'overall'],
+  },
+  {
+    category: 'bottom',
+    keywords: ['pant', 'trouser', 'jean', 'short', 'skirt', 'chino', 'legging'],
+  },
+  {
+    category: 'top',
+    keywords: [
+      'shirt',
+      't-shirt',
+      'tee',
+      'blouse',
+      'sweater',
+      'hoodie',
+      'top',
+      'polo',
+      'cardigan',
+    ],
+  },
+  {
+    category: 'accessory',
+    keywords: [
+      'belt',
+      'hat',
+      'cap',
+      'scarf',
+      'tie',
+      'sunglass',
+      'wallet',
+      'glove',
+      'watch',
+    ],
+  },
 ];
 
 function normalizeText(value: string): string {
   return value.trim().replace(/\s+/g, ' ');
 }
 
-function normalizeList(values: string[], maxItems: number, maxLength: number): string[] {
+function normalizeList(
+  values: string[],
+  maxItems: number,
+  maxLength: number,
+): string[] {
   const seen = new Set<string>();
   const result: string[] = [];
 
@@ -51,8 +132,13 @@ function normalizeList(values: string[], maxItems: number, maxLength: number): s
   return result;
 }
 
-function inferCategory(snapshot: ProductSourceSnapshot): WardrobeCategory | null {
-  const haystack = `${snapshot.categoryHint ?? ''} ${snapshot.name ?? ''}`.toLocaleLowerCase('en');
+function inferCategory(
+  snapshot: ProductSourceSnapshot,
+): WardrobeCategory | null {
+  const haystack =
+    `${snapshot.categoryHint ?? ''} ${snapshot.name ?? ''}`.toLocaleLowerCase(
+      'en',
+    );
 
   for (const rule of CATEGORY_RULES) {
     if (rule.keywords.some((keyword) => haystack.includes(keyword))) {
@@ -100,7 +186,9 @@ function inferSubcategory(snapshot: ProductSourceSnapshot): string | null {
   return labels.find(([keyword]) => name.includes(keyword))?.[1] ?? null;
 }
 
-function mapPreviewFailure(reason: ProductSourceFailureReason): ProductImportPreviewFailureReason {
+function mapPreviewFailure(
+  reason: ProductSourceFailureReason,
+): ProductImportPreviewFailureReason {
   switch (reason) {
     case 'URL_NOT_ALLOWED':
       return 'SOURCE_URL_NOT_ALLOWED';
@@ -130,12 +218,15 @@ export class ProductImportService implements IProductImportService {
       const preview: ProductImportPreviewDto = {
         sourceUrl: snapshot.sourceUrl,
         name: snapshot.name ? normalizeText(snapshot.name).slice(0, 100) : null,
-        brand: snapshot.brand ? normalizeText(snapshot.brand).slice(0, 80) : null,
+        brand: snapshot.brand
+          ? normalizeText(snapshot.brand).slice(0, 80)
+          : null,
         colors: normalizeList(snapshot.colors, 5, 40),
         materials: normalizeList(snapshot.materials, 8, 60),
         suggestedCategory: inferCategory(snapshot),
         suggestedSubcategory: inferSubcategory(snapshot),
-        imageAvailable: snapshot.imageUrl !== null,
+        imageAvailable: snapshot.imageUrls.length > 0,
+        imageUrls: snapshot.imageUrls,
       };
 
       if (!preview.name && !preview.brand && !preview.suggestedCategory) {
@@ -151,7 +242,11 @@ export class ProductImportService implements IProductImportService {
     }
   }
 
-  async importImage(userId: string, itemId: string): Promise<ProductImageImportResult> {
+  async importImage(
+    userId: string,
+    itemId: string,
+    imageUrls?: string[],
+  ): Promise<ProductImageImportResult> {
     let item;
     try {
       item = await this.wardrobeRepository.findById(userId, itemId);
@@ -164,7 +259,11 @@ export class ProductImportService implements IProductImportService {
 
     let downloaded;
     try {
-      downloaded = await this.productSourceService.downloadPrimaryImage(item.sourceUrl);
+      const selectedUrls = imageUrls?.length ? Array.from(new Set(imageUrls)) : [undefined];
+      downloaded = await Promise.all(selectedUrls.map((imageUrl) => imageUrl
+        ? this.productSourceService.downloadPrimaryImage(item.sourceUrl!, imageUrl)
+        : this.productSourceService.downloadPrimaryImage(item.sourceUrl!),
+      ));
     } catch (error) {
       if (error instanceof ProductSourceError) {
         switch (error.reason) {
@@ -184,7 +283,11 @@ export class ProductImportService implements IProductImportService {
       return { ok: false, reason: 'SOURCE_UNAVAILABLE' };
     }
 
-    const result = await this.wardrobeImageService.replace(userId, itemId, downloaded);
+    const result = this.wardrobeImageService.replaceMany
+      ? await this.wardrobeImageService.replaceMany(userId, itemId, downloaded)
+      : downloaded.length === 1
+        ? await this.wardrobeImageService.replace(userId, itemId, downloaded[0]!)
+        : { ok: false as const, reason: 'STORAGE_UNAVAILABLE' as const };
     if (result.ok) return result;
 
     switch (result.reason) {

@@ -21,7 +21,9 @@ const sourceUrlSchema = z
 
 export const wardrobeItemIdParamsSchema = z
   .object({
-    itemId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Wardrobe item ID is invalid.'),
+    itemId: z
+      .string()
+      .regex(/^[0-9a-fA-F]{24}$/, 'Wardrobe item ID is invalid.'),
   })
   .strict();
 
@@ -63,6 +65,16 @@ export const productImportPreviewBodySchema = z
     sourceUrl: sourceUrlSchema,
   })
   .strict();
+
+export const importProductImageBodySchema = z
+  .object({
+    imageUrl: z.string().trim().url().optional(),
+    imageUrls: z.array(z.string().trim().url()).min(1).max(8).optional(),
+  })
+  .strict()
+  .refine((value) => !(value.imageUrl && value.imageUrls), {
+    message: 'Send imageUrls or the legacy imageUrl, not both.',
+  });
 
 export const wardrobeListQuerySchema = z
   .object({

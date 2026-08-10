@@ -37,11 +37,11 @@ New images use shared folders rather than user/item partitions:
 <bucket>/wardrope/clothings/<random-uuid>.webp
 <bucket>/wardrope/accessories/<random-uuid>.webp
 <bucket>/wardrope/user/<random-uuid>.<extension>
-<bucket>/wardrope/fragrances/<random-uuid>.<extension>
+<bucket>/wardrope/Frangrances/<random-uuid>.<extension>
 <bucket>/wardrope/Footware/<random-uuid>.webp
 ```
 
-Current wardrobe category routing is backend-owned: tops, bottoms, one-piece items and outerwear go to `clothings`; bags, accessories and jewelry go to `accessories`; footwear goes to `Footware`. The `user` folder is reserved for user avatars and `fragrances` is reserved for fragrance images.
+Current wardrobe category routing is backend-owned: tops, bottoms, one-piece items and outerwear go to `clothings`; bags, accessories and jewelry go to `accessories`; footwear goes to `Footware`. The `user` folder is reserved exclusively for user avatars and `Frangrances` stores fragrance images.
 
 The bucket remains private and server-only. Existing object keys already saved in MongoDB remain readable and removable exactly as stored, so this layout change does not require a destructive migration.
 

@@ -31,5 +31,9 @@ export type ProductImageImportResult =
 
 export interface IProductImportService {
   preview(sourceUrl: string): Promise<ProductImportPreviewResult>;
-  importImage(userId: string, itemId: string): Promise<ProductImageImportResult>;
+  importImage(
+    userId: string,
+    itemId: string,
+    imageUrls?: string[],
+  ): Promise<ProductImageImportResult>;
 }
