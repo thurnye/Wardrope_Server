@@ -15,6 +15,7 @@ export function toWardrobeItemDto(record: WardrobeItemRecord): WardrobeItemDto {
     category: record.category,
     subcategory: record.subcategory,
     brand: record.brand,
+    description: record.description ?? null,
     colors: [...record.colors],
     materials: [...record.materials],
     pattern: record.pattern,

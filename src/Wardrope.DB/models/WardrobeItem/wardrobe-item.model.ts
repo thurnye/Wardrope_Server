@@ -23,6 +23,7 @@ export interface WardrobeItemDocument {
   category: WardrobeCategory;
   subcategory: string;
   brand: string | null;
+  description?: string | null;
   colors: string[];
   materials: string[];
   pattern: WardrobePattern | null;

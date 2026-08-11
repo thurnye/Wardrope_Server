@@ -33,7 +33,7 @@ function normalized(value: string): string {
 }
 
 function textFor(item: WardrobeItemDto): string {
-  return [item.name, item.subcategory, item.brand ?? '', ...item.materials]
+  return [item.name, item.subcategory, item.brand ?? '', item.description ?? '', ...item.materials]
     .join(' ')
     .toLocaleLowerCase('en');
 }

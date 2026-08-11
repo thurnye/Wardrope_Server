@@ -27,6 +27,11 @@ export type WardrobeImageReadResult =
   | { ok: false; reason: 'NOT_FOUND' | 'STORAGE_UNAVAILABLE' };
 
 export interface IWardrobeImageService {
+  appendMany?(
+    userId: string,
+    itemId: string,
+    inputs: ReplaceWardrobeImageInput[],
+  ): Promise<WardrobeImageMutationResult>;
   replaceMany?(
     userId: string,
     itemId: string,
@@ -38,5 +43,5 @@ export interface IWardrobeImageService {
     input: ReplaceWardrobeImageInput,
   ): Promise<WardrobeImageMutationResult>;
   read(userId: string, itemId: string, imageIndex?: number): Promise<WardrobeImageReadResult>;
-  remove(userId: string, itemId: string): Promise<WardrobeImageMutationResult>;
+  remove(userId: string, itemId: string, imageIndex?: number): Promise<WardrobeImageMutationResult>;
 }

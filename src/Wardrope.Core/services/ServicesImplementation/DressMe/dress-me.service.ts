@@ -167,7 +167,7 @@ export class DressMeService implements IDressMeService {
 
   async recommend(userId: string, input: DressMeRequestDto): Promise<DressMeResult> {
     const interpreted = interpretNaturalDressMeRequest(input);
-    const forAt = input.forAt ?? new Date().toISOString();
+    const forAt = input.forAt ?? inferNaturalDressMeTimeForTest(input.additionalContext ?? '');
     const includeFragrance = interpreted.includeFragrance;
     const recommendationCount = input.recommendationCount ?? 3;
 
@@ -266,7 +266,7 @@ export class DressMeService implements IDressMeService {
 }
 
 export function interpretNaturalDressMeRequest(input: DressMeRequestDto): {
-  occasion: DressMeRequestDto['occasion'];
+  occasion: NonNullable<DressMeRequestDto['occasion']>;
   dressCode: NonNullable<DressMeProviderContext['request']['dressCode']> | null;
   includeFragrance: boolean;
 } {
@@ -293,7 +293,7 @@ export function interpretNaturalDressMeRequest(input: DressMeRequestDto): {
     [/\bbusiness\b/, 'business'],
     [/\bcasual\b/, 'casual'],
   ];
-  const occasion = occasionRules.find(([pattern]) => pattern.test(text))?.[1] ?? input.occasion;
+  const occasion = occasionRules.find(([pattern]) => pattern.test(text))?.[1] ?? input.occasion ?? 'everyday';
   const dressCode = dressCodeRules.find(([pattern]) => pattern.test(text))?.[1] ?? input.dressCode ?? null;
   const excludesFragrance = /\b(?:no|without|skip|avoid)\s+(?:fragrance|perfume|cologne|scent)\b/.test(text);
   const requestsFragrance = /\b(?:include|add|wear|with)\s+(?:a\s+)?(?:fragrance|perfume|cologne|scent)\b/.test(text);
@@ -302,4 +302,33 @@ export function interpretNaturalDressMeRequest(input: DressMeRequestDto): {
     dressCode,
     includeFragrance: excludesFragrance ? false : requestsFragrance ? true : input.includeFragrance ?? true,
   };
+}
+
+export function inferNaturalDressMeTimeForTest(text: string, now = new Date()): string {
+  const normalized = text.toLocaleLowerCase('en');
+  const result = new Date(now);
+  result.setSeconds(0, 0);
+
+  const hoursFromNow = normalized.match(/\bin\s+(\d{1,2})\s+hours?\b/)?.[1];
+  if (hoursFromNow) {
+    result.setTime(now.getTime() + Math.min(24, Number(hoursFromNow)) * 60 * 60 * 1_000);
+    return result.toISOString();
+  }
+
+  if (/\btomorrow\b/.test(normalized)) result.setDate(result.getDate() + 1);
+  if (/\bmorning\b/.test(normalized)) result.setHours(9, 0, 0, 0);
+  else if (/\bafternoon\b/.test(normalized)) result.setHours(14, 0, 0, 0);
+  else if (/\b(?:evening|tonight)\b/.test(normalized)) result.setHours(19, 0, 0, 0);
+
+  const clock = normalized.match(/\b(?:at\s+)?(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*(a\.?m\.?|p\.?m\.?)\b/);
+  if (clock?.[1] && clock[3]) {
+    let hour = Number(clock[1]) % 12;
+    if (clock[3].startsWith('p')) hour += 12;
+    result.setHours(hour, Number(clock[2] ?? 0), 0, 0);
+  }
+
+  if (result.getTime() < now.getTime() - 5 * 60 * 1_000) result.setDate(result.getDate() + 1);
+  const latest = now.getTime() + 24 * 60 * 60 * 1_000;
+  if (result.getTime() > latest) result.setTime(latest);
+  return result.toISOString();
 }

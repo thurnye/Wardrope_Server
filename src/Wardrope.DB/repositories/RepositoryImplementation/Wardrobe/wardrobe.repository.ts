@@ -53,6 +53,7 @@ function mapRecord(document: WardrobeItemDocument): WardrobeItemRecord {
     category: document.category,
     subcategory: document.subcategory,
     brand: document.brand,
+    description: document.description ?? null,
     colors: [...document.colors],
     materials: [...document.materials],
     pattern: document.pattern,
@@ -117,6 +118,7 @@ export class WardrobeRepository implements IWardrobeRepository, IWardrobeImageRe
       category: input.category,
       subcategory: input.subcategory,
       brand: input.brand ?? null,
+      description: input.description ?? null,
       colors: [...input.colors],
       materials: [...(input.materials ?? [])],
       pattern: input.pattern ?? null,
@@ -158,6 +160,7 @@ export class WardrobeRepository implements IWardrobeRepository, IWardrobeImageRe
         { name: search },
         { brand: search },
         { subcategory: search },
+        { description: search },
       ];
     }
 
@@ -210,6 +213,7 @@ export class WardrobeRepository implements IWardrobeRepository, IWardrobeImageRe
     if (input.category !== undefined) updateFields.category = input.category;
     if (input.subcategory !== undefined) updateFields.subcategory = input.subcategory;
     if (input.brand !== undefined) updateFields.brand = input.brand;
+    if (input.description !== undefined) updateFields.description = input.description;
     if (input.colors !== undefined) updateFields.colors = [...input.colors];
     if (input.materials !== undefined) updateFields.materials = [...input.materials];
     if (input.pattern !== undefined) updateFields.pattern = input.pattern;

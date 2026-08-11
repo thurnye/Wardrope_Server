@@ -208,7 +208,16 @@ describe('Wardrope wardrobe image API', () => {
       request(app).delete(`/api/v1/wardrobe/${ITEM_ID}/image`),
     ).expect(200);
 
-    expect(imageService.remove).toHaveBeenCalledWith(USER_ID, ITEM_ID);
+    expect(imageService.remove).toHaveBeenCalledWith(USER_ID, ITEM_ID, 0);
     expect(response.body.data.images).toEqual([]);
+  });
+
+  it('removes only the selected image index', async () => {
+    const { app, imageService } = harness();
+    await authenticated(
+      request(app).delete(`/api/v1/wardrobe/${ITEM_ID}/images/2`),
+    ).expect(200);
+
+    expect(imageService.remove).toHaveBeenCalledWith(USER_ID, ITEM_ID, 2);
   });
 });

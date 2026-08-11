@@ -7,6 +7,7 @@ import {
 const nameSchema = z.string().trim().min(1).max(100);
 const subcategorySchema = z.string().trim().min(1).max(60);
 const brandSchema = z.string().trim().min(1).max(80);
+const descriptionSchema = z.string().trim().min(1).max(2_000);
 const colorSchema = z.string().trim().min(1).max(40);
 const materialSchema = z.string().trim().min(1).max(60);
 const sizeSchema = z.string().trim().min(1).max(40);
@@ -33,6 +34,7 @@ export const createWardrobeItemBodySchema = z
     category: z.enum(WARDROBE_CATEGORIES),
     subcategory: subcategorySchema,
     brand: brandSchema.nullable().optional(),
+    description: descriptionSchema.nullable().optional(),
     colors: z.array(colorSchema).min(1).max(5),
     materials: z.array(materialSchema).max(8).optional(),
     pattern: z.enum(WARDROBE_PATTERNS).nullable().optional(),
@@ -48,6 +50,7 @@ export const updateWardrobeItemBodySchema = z
     category: z.enum(WARDROBE_CATEGORIES).optional(),
     subcategory: subcategorySchema.optional(),
     brand: brandSchema.nullable().optional(),
+    description: descriptionSchema.nullable().optional(),
     colors: z.array(colorSchema).min(1).max(5).optional(),
     materials: z.array(materialSchema).max(8).optional(),
     pattern: z.enum(WARDROBE_PATTERNS).nullable().optional(),
@@ -69,7 +72,7 @@ export const productImportPreviewBodySchema = z
 export const importProductImageBodySchema = z
   .object({
     imageUrl: z.string().trim().url().optional(),
-    imageUrls: z.array(z.string().trim().url()).min(1).max(8).optional(),
+    imageUrls: z.array(z.string().trim().url()).min(1).max(10).optional(),
   })
   .strict()
   .refine((value) => !(value.imageUrl && value.imageUrls), {

@@ -39,6 +39,7 @@ export interface WardrobeItemDto {
   category: WardrobeCategory;
   subcategory: string;
   brand: string | null;
+  description?: string | null | undefined;
   colors: string[];
   materials: string[];
   pattern: WardrobePattern | null;
@@ -55,6 +56,7 @@ export interface CreateWardrobeItemDto {
   category: WardrobeCategory;
   subcategory: string;
   brand?: string | null | undefined;
+  description?: string | null | undefined;
   colors: string[];
   materials?: string[] | undefined;
   pattern?: WardrobePattern | null | undefined;
@@ -68,6 +70,7 @@ export interface UpdateWardrobeItemDto {
   category?: WardrobeCategory | undefined;
   subcategory?: string | undefined;
   brand?: string | null | undefined;
+  description?: string | null | undefined;
   colors?: string[] | undefined;
   materials?: string[] | undefined;
   pattern?: WardrobePattern | null | undefined;
@@ -80,6 +83,7 @@ export interface ProductImportPreviewDto {
   sourceUrl: string;
   name: string | null;
   brand: string | null;
+  description?: string | null | undefined;
   colors: string[];
   materials: string[];
   suggestedCategory: WardrobeCategory | null;

@@ -54,6 +54,7 @@ function normalizeCreate(input: CreateWardrobeItemDto): CreateWardrobeItemDto {
     category: input.category,
     subcategory: normalizeText(input.subcategory),
     brand: input.brand === undefined ? null : normalizeNullableText(input.brand),
+    description: input.description === undefined ? null : normalizeNullableText(input.description),
     colors: normalizeList(input.colors),
     materials: normalizeList(input.materials ?? []),
     pattern: input.pattern ?? null,
@@ -70,6 +71,7 @@ function normalizeUpdate(input: UpdateWardrobeItemDto): UpdateWardrobeItemDto {
   if (input.category !== undefined) normalized.category = input.category;
   if (input.subcategory !== undefined) normalized.subcategory = normalizeText(input.subcategory);
   if (input.brand !== undefined) normalized.brand = normalizeNullableText(input.brand);
+  if (input.description !== undefined) normalized.description = normalizeNullableText(input.description);
   if (input.colors !== undefined) normalized.colors = normalizeList(input.colors);
   if (input.materials !== undefined) normalized.materials = normalizeList(input.materials);
   if (input.pattern !== undefined) normalized.pattern = input.pattern;

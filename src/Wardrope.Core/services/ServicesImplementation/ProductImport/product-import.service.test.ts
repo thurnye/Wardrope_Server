@@ -134,6 +134,25 @@ describe('ProductImportService', () => {
     });
   });
 
+  it('rejects an HTML whitespace entity as a product name when no details were fetched', async () => {
+    const h = harness();
+    vi.mocked(h.productSourceService.inspect).mockResolvedValueOnce({
+      sourceUrl: 'https://www.zara.com/product',
+      name: '&nbsp;',
+      brand: null,
+      description: null,
+      colors: [],
+      materials: [],
+      categoryHint: null,
+      imageUrls: [],
+    });
+
+    await expect(h.service.preview('https://www.zara.com/product')).resolves.toEqual({
+      ok: false,
+      reason: 'PRODUCT_NOT_RECOGNIZED',
+    });
+  });
+
   it('checks owner-scoped item existence before making any source request', async () => {
     const h = harness(null);
     const result = await h.service.importImage(USER_ID, ITEM_ID);
@@ -171,8 +190,8 @@ describe('ProductImportService', () => {
 
   it('downloads every selected product image and archives them together', async () => {
     const h = harness();
-    const replaceMany = vi.fn().mockResolvedValue({ ok: true, item: {} });
-    h.wardrobeImageService.replaceMany = replaceMany;
+    const appendMany = vi.fn().mockResolvedValue({ ok: true, item: {} });
+    h.wardrobeImageService.appendMany = appendMany;
     const urls = ['https://cdn.example/front.jpg', 'https://cdn.example/back.jpg'];
 
     const result = await h.service.importImage(USER_ID, ITEM_ID, urls);
@@ -184,7 +203,7 @@ describe('ProductImportService', () => {
     expect(h.productSourceService.downloadPrimaryImage).toHaveBeenNthCalledWith(
       2, 'https://shop.example/products/navy-sneaker', urls[1],
     );
-    expect(replaceMany).toHaveBeenCalledWith(USER_ID, ITEM_ID, [
+    expect(appendMany).toHaveBeenCalledWith(USER_ID, ITEM_ID, [
       { bytes: Buffer.from('remote-image'), declaredContentType: 'image/jpeg' },
       { bytes: Buffer.from('remote-image'), declaredContentType: 'image/jpeg' },
     ]);

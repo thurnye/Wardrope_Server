@@ -67,7 +67,7 @@ export class WardrobeImageController extends BaseApiController {
     const { user } = getAuthenticatedContext(res);
     const rawImageIndex = req.params.imageIndex;
     const imageIndex = rawImageIndex === undefined ? 0 : Number(rawImageIndex);
-    if (!Number.isInteger(imageIndex) || imageIndex < 0 || imageIndex > 7) {
+    if (!Number.isInteger(imageIndex) || imageIndex < 0 || imageIndex > 9) {
       return this.errorResponse(res, 400, 'VALIDATION_ERROR', 'The wardrobe image index is invalid.');
     }
     const result = await this.wardrobeImageService.read(user.id, parsed.data.itemId, imageIndex);
@@ -105,13 +105,18 @@ export class WardrobeImageController extends BaseApiController {
   };
 
   remove = async (req: Request, res: Response) => {
-    const parsed = wardrobeItemIdParamsSchema.safeParse(req.params);
+    const parsed = wardrobeItemIdParamsSchema.safeParse({ itemId: req.params.itemId });
     if (!parsed.success) {
       return this.errorResponse(res, 400, 'VALIDATION_ERROR', 'The wardrobe item identifier is invalid.');
     }
 
     const { user } = getAuthenticatedContext(res);
-    const result = await this.wardrobeImageService.remove(user.id, parsed.data.itemId);
+    const rawImageIndex = req.params.imageIndex;
+    const imageIndex = rawImageIndex === undefined ? 0 : Number(rawImageIndex);
+    if (!Number.isInteger(imageIndex) || imageIndex < 0 || imageIndex > 9) {
+      return this.errorResponse(res, 400, 'VALIDATION_ERROR', 'The wardrobe image index is invalid.');
+    }
+    const result = await this.wardrobeImageService.remove(user.id, parsed.data.itemId, imageIndex);
 
     if (result.ok) {
       return this.okResponse(res, result.item);
@@ -119,7 +124,7 @@ export class WardrobeImageController extends BaseApiController {
 
     switch (result.reason) {
       case 'NOT_FOUND':
-        return this.errorResponse(res, 404, 'WARDROBE_ITEM_NOT_FOUND', 'Wardrobe item was not found.');
+        return this.errorResponse(res, 404, 'WARDROBE_IMAGE_NOT_FOUND', 'Wardrobe image was not found.');
       case 'CONFLICT':
         return this.errorResponse(
           res,

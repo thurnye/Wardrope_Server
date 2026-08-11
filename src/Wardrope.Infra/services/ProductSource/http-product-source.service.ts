@@ -11,6 +11,7 @@ import {
 
 const MAX_HTML_BYTES = 2 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_PRODUCT_IMAGES = 10;
 const MAX_REDIRECTS = 3;
 const MAX_ADDRESS_ATTEMPTS = 4;
 const REQUEST_TIMEOUT_MS = 8_000;
@@ -29,6 +30,7 @@ interface BoundedResponse {
 interface ProductMetadata {
   name: string | null;
   brand: string | null;
+  description?: string | null;
   colors: string[];
   materials: string[];
   categoryHint: string | null;
@@ -676,6 +678,7 @@ async function fetchPinned(
 
 function decodeHtml(value: string): string {
   return value
+    .replace(/&nbsp;/gi, ' ')
     .replace(/&quot;/gi, '"')
     .replace(/&#39;|&apos;/gi, "'")
     .replace(/&lt;/gi, '<')
@@ -833,6 +836,10 @@ export function extractProductMetadataForTest(
     meta.get('product:brand') ??
     meta.get('og:brand') ??
     null;
+  const description = stringValue(product?.description)
+    ?? meta.get('og:description')
+    ?? meta.get('twitter:description')
+    ?? null;
   const colors = stringList(product?.color ?? meta.get('product:color'));
   const materials = stringList(
     product?.material ?? meta.get('product:material'),
@@ -862,11 +869,12 @@ export function extractProductMetadataForTest(
         })
         .filter((url): url is string => Boolean(url)),
     ),
-  );
+  ).slice(0, MAX_PRODUCT_IMAGES);
 
   return {
     name,
     brand,
+    ...(description ? { description: description.slice(0, 2_000) } : {}),
     colors,
     materials,
     categoryHint,
@@ -884,6 +892,20 @@ function isLikelyProductImage(url: URL, alt: string): boolean {
   return /(?:productimages?|products?|sku|pdp|catalog|merchandise|zoom|primary|main)/.test(searchable);
 }
 
+function productIdentifiersFromPageUrl(pageUrl: URL): string[] {
+  const identifiers = new Set<string>();
+  for (const match of pageUrl.pathname.matchAll(/(?:^|[^0-9])([0-9]{6,})(?=$|[^0-9])/g)) {
+    if (match[1]) identifiers.add(match[1]);
+  }
+  for (const [key, value] of pageUrl.searchParams) {
+    if (!/(?:sku|product|item|style|model|pid)/i.test(key)) continue;
+    for (const match of value.matchAll(/([0-9]{6,})/g)) {
+      if (match[1]) identifiers.add(match[1]);
+    }
+  }
+  return [...identifiers];
+}
+
 /** Parse the bounded Markdown returned by the final reader fallback. */
 export function extractReaderProductMetadataForTest(
   markdown: string,
@@ -892,7 +914,8 @@ export function extractReaderProductMetadataForTest(
   if (isBlockedProductDocumentForTest(markdown)) {
     return { name: null, brand: null, colors: [], materials: [], categoryHint: null, imageUrls: [] };
   }
-  const title = markdown.match(/^Title:\s*(.+)$/im)?.[1]?.trim() ?? null;
+  const rawTitle = markdown.match(/^Title:\s*(.+)$/im)?.[1] ?? null;
+  const title = rawTitle ? decodeHtml(rawTitle) || null : null;
   const titleParts = title?.split(/\s+[|]\s+|\s+-\s+/).map((part) => part.trim()).filter(Boolean) ?? [];
   const retailer = titleParts.length > 2 ? titleParts.at(-1) : null;
   const name = titleParts[0] ?? title;
@@ -901,6 +924,16 @@ export function extractReaderProductMetadataForTest(
     : null;
 
   const firstBreadcrumb = markdown.match(/^\d+\.\s+\[([^\]]+)]\(https?:\/\/[^)]+\)$/m)?.[1] ?? null;
+  const descriptionSection = markdown.match(/##\s+Description\s*\n+([\s\S]*?)(?=\n#{1,2}\s|$)/i)?.[1];
+  const sectionDescription = descriptionSection
+    ?.split(/\n+/)
+    .map((line) => line.trim())
+    .filter((line) => line && !/^model (?:height|size):/i.test(line) && !line.startsWith('!['))
+    .join(' ') || null;
+  const description = markdown.match(/##\s+About (?:the )?Product\s*\n+([^\n#][^\n]*)/i)?.[1]?.trim()
+    ?? sectionDescription
+    ?? markdown.match(/^Description:\s*(.+)$/im)?.[1]?.trim()
+    ?? null;
   const detail = (label: string) => markdown.match(new RegExp(`\\*\\*${label}:\\*\\*\\s*([^\\n]+)`, 'i'))?.[1]?.trim() ?? null;
   const keyNotes = (detail('Key Notes') ?? '').split(',').map((note) => note.trim()).filter(Boolean);
   const bottleSizeMatch = markdown.match(/\bSize:\s*(?:[\d.]+\s*oz\s*\/\s*)?([\d.]+)\s*ml\b/i);
@@ -910,12 +943,16 @@ export function extractReaderProductMetadataForTest(
     ? (/\/ca(?:\/|$)/i.test(pageUrl.pathname) ? 'CAD' : 'USD')
     : null;
   const imageUrls: string[] = [];
+  const pageProductIdentifiers = productIdentifiersFromPageUrl(pageUrl);
   const imagePattern = /!\[([^\]]*)]\((https:\/\/[^\s)]+)(?:\s+"[^"]*")?\)/gi;
   let imageMatch: RegExpExecArray | null;
   while ((imageMatch = imagePattern.exec(markdown))) {
     try {
       const candidate = normalizeAndValidateUrl(imageMatch[2] ?? '');
-      if (isLikelyProductImage(candidate, imageMatch[1] ?? '')) {
+      const exactPageProductImage = pageProductIdentifiers.some((identifier) =>
+        candidate.pathname.toLocaleLowerCase('en').includes(identifier.toLocaleLowerCase('en')),
+      ) && !/(?:transparent-background|placeholder|spacer)/i.test(candidate.pathname);
+      if (exactPageProductImage || isLikelyProductImage(candidate, imageMatch[1] ?? '')) {
         imageUrls.push(candidate.toString());
       }
     } catch {
@@ -940,10 +977,11 @@ export function extractReaderProductMetadataForTest(
   return {
     name,
     brand,
+    ...(description ? { description: description.slice(0, 2_000) } : {}),
     colors: [],
     materials: [],
     categoryHint: firstBreadcrumb,
-    imageUrls: requestedSku ? skuImages : uniqueImages,
+    imageUrls: (requestedSku ? skuImages : uniqueImages).slice(0, MAX_PRODUCT_IMAGES),
     fragranceDetails: {
       fragranceFamily: detail('Fragrance Family'),
       scentType: detail('Scent Type'),

@@ -21,7 +21,7 @@ const locationSchema = z.object({
 }).strict();
 
 export const dressMeRequestBodySchema = z.object({
-  occasion: z.enum(DRESS_ME_OCCASIONS),
+  occasion: z.enum(DRESS_ME_OCCASIONS).optional(),
   dressCode: z.enum(DRESS_ME_DRESS_CODES).nullable().optional(),
   forAt: forAtSchema.optional(),
   location: locationSchema.optional(),

@@ -114,6 +114,7 @@ function minimizeContext(context: DressMeProviderContext) {
       category: item.category,
       subcategory: item.subcategory,
       brand: item.brand,
+      description: item.description,
       colors: item.colors,
       materials: item.materials,
       pattern: item.pattern,

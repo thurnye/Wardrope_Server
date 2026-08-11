@@ -54,7 +54,7 @@ function uploadSingleImage(req: Request, res: Response, next: NextFunction) {
 
 function createOwnershipPreflight(wardrobeService: IWardrobeService) {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const parsed = wardrobeItemIdParamsSchema.safeParse(req.params);
+    const parsed = wardrobeItemIdParamsSchema.safeParse({ itemId: req.params.itemId });
 
     if (!parsed.success) {
       res.status(400).json({
@@ -117,6 +117,13 @@ export function createWardrobeImageRoutes(
   );
   router.delete(
     '/:itemId/image',
+    requireCsrf,
+    mutationLimiter,
+    ownershipPreflight,
+    controller.remove,
+  );
+  router.delete(
+    '/:itemId/images/:imageIndex',
     requireCsrf,
     mutationLimiter,
     ownershipPreflight,

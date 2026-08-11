@@ -165,6 +165,39 @@ Size: 2.0 oz / 60 ml
     ]);
   });
 
+  it('keeps only images whose filename matches the product identifier from any retailer URL', () => {
+    const markdown = `Title: FLOWY RELAXED FIT PLEATED PANTS | ZARA
+## Description
+Relaxed fit pants made of flowy viscose blend fabric.
+![Product](https://static.zara.net/assets/public/a/b/01195327700-p/01195327700-p.jpg?w=596)
+![Recommended bag](https://static.zara.net/assets/public/a/b/13355720700-f1/13355720700-f1.jpg?w=66)
+![Placeholder](https://static.zara.net/stdstatic/images/transparent-background.png)`;
+
+    const metadata = extractReaderProductMetadataForTest(
+      markdown,
+      new URL('https://shop.example/products/flowy-pants-p01195327.html?campaign=summer'),
+    );
+    expect(metadata.description).toBe('Relaxed fit pants made of flowy viscose blend fabric.');
+    expect(metadata.imageUrls).toEqual([
+      'https://static.zara.net/assets/public/a/b/01195327700-p/01195327700-p.jpg?w=596',
+    ]);
+  });
+
+  it('returns at most ten product images from the reader fallback', () => {
+    const productImages = Array.from(
+      { length: 12 },
+      (_, index) => `![Product view ${index + 1}](https://cdn.example.com/products/item-${index + 1}.jpg)`,
+    ).join('\n');
+
+    const metadata = extractReaderProductMetadataForTest(
+      `Title: Linen Shirt | Example Shop\n${productImages}`,
+      new URL('https://shop.example/products/linen-shirt'),
+    );
+
+    expect(metadata.imageUrls).toHaveLength(10);
+    expect(metadata.imageUrls.at(-1)).toBe('https://cdn.example.com/products/item-10.jpg');
+  });
+
   it('matches a selected product image after its signed query parameters rotate', () => {
     expect(selectProductImageUrlForTest(
       ['https://cdn.example/products/shirt.jpg?signature=new&width=1200'],
@@ -187,6 +220,7 @@ Size: 2.0 oz / 60 ml
             "@context": "https://schema.org",
             "@type": "Product",
             "name": "Navy Leather Sneaker",
+            "description": "A lightweight leather sneaker with a cushioned sole.",
             "brand": { "@type": "Brand", "name": "Example" },
             "color": ["Navy", "White"],
             "material": "Leather",
@@ -202,6 +236,7 @@ Size: 2.0 oz / 60 ml
     )).toEqual({
       name: 'Navy Leather Sneaker',
       brand: 'Example',
+      description: 'A lightweight leather sneaker with a cushioned sole.',
       colors: ['Navy', 'White'],
       materials: ['Leather'],
       categoryHint: 'Men > Shoes > Sneakers',

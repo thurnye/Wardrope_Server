@@ -58,6 +58,10 @@ function harness(current = item(), objectKey = NEW_OBJECT_KEY) {
   } as unknown as IWardrobeRepository;
 
   const imageRepository: IWardrobeImageRepository = {
+    replaceImages: vi.fn().mockImplementation(async (_userId, _itemId, _expected, images) => ({
+      ...current,
+      images,
+    })),
     replaceImage: vi.fn().mockImplementation(async (_userId, _itemId, _expected, image) => ({
       ...current,
       images: [image],
@@ -142,12 +146,12 @@ describe('WardrobeImageService', () => {
     }
   });
 
-  it('retires an older object only after the database points at the new image', async () => {
+  it('appends a new image without retiring existing image objects', async () => {
     const h = harness(item('wardrope/old.webp', 'outerwear'));
     const calls: string[] = [];
-    vi.mocked(h.imageRepository.replaceImage).mockImplementation(async (_userId, _itemId, _expected, image) => {
+    vi.mocked(h.imageRepository.replaceImages!).mockImplementation(async (_userId, _itemId, _expected, images) => {
       calls.push('db');
-      return { ...item('wardrope/old.webp'), image };
+      return { ...item('wardrope/old.webp'), images };
     });
     vi.mocked(h.fileStorage.deletePrivateFile).mockImplementation(async () => {
       calls.push('s3-delete');
@@ -159,13 +163,22 @@ describe('WardrobeImageService', () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(calls).toEqual(['db', 's3-delete']);
-    expect(h.fileStorage.deletePrivateFile).toHaveBeenCalledWith('wardrope/old.webp');
+    expect(calls).toEqual(['db']);
+    expect(h.fileStorage.deletePrivateFile).not.toHaveBeenCalled();
+    expect(h.imageRepository.replaceImages).toHaveBeenCalledWith(
+      USER_ID,
+      ITEM_ID,
+      ['wardrope/old.webp'],
+      expect.arrayContaining([
+        expect.objectContaining({ objectKey: 'wardrope/old.webp' }),
+        expect.objectContaining({ objectKey: NEW_OBJECT_KEY }),
+      ]),
+    );
   });
 
   it('deletes the newly uploaded object when Mongo compare-and-swap loses a race', async () => {
     const h = harness(item('wardrope/old.webp'));
-    vi.mocked(h.imageRepository.replaceImage).mockResolvedValueOnce(null);
+    vi.mocked(h.imageRepository.replaceImages!).mockResolvedValueOnce(null);
     vi.mocked(h.wardrobeRepository.findById)
       .mockResolvedValueOnce(item('wardrope/old.webp'))
       .mockResolvedValueOnce(item('wardrope/other.webp'));
@@ -204,6 +217,49 @@ describe('WardrobeImageService', () => {
 
     expect(result.ok).toBe(true);
     expect(calls).toEqual(['db', 's3']);
+  });
+
+  it('removes only the selected image and preserves the others', async () => {
+    const current = item('wardrope/first.webp');
+    current.images.push({
+      ...current.images[0]!,
+      objectKey: 'wardrope/second.webp',
+    });
+    const h = harness(current);
+
+    const result = await h.service.remove(USER_ID, ITEM_ID, 1);
+
+    expect(result.ok).toBe(true);
+    expect(h.imageRepository.replaceImages).toHaveBeenCalledWith(
+      USER_ID,
+      ITEM_ID,
+      ['wardrope/first.webp', 'wardrope/second.webp'],
+      [expect.objectContaining({ objectKey: 'wardrope/first.webp' })],
+    );
+    expect(h.fileStorage.deletePrivateFile).toHaveBeenCalledWith('wardrope/second.webp');
+    expect(h.fileStorage.deletePrivateFile).not.toHaveBeenCalledWith('wardrope/first.webp');
+  });
+
+  it('rejects an appended photo when the item already has ten', async () => {
+    const current = item('wardrope/1.webp');
+    current.images = Array.from({ length: 10 }, (_, index) => ({
+      ...current.images[0]!,
+      objectKey: `wardrope/${index + 1}.webp`,
+    }));
+    const h = harness(current);
+
+    const result = await h.service.replace(USER_ID, ITEM_ID, {
+      bytes: Buffer.from('input'),
+      declaredContentType: 'image/png',
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'INVALID_IMAGE',
+      validationReason: 'INVALID_IMAGE_COUNT',
+    });
+    expect(h.imageProcessing.processWardrobeImage).not.toHaveBeenCalled();
+    expect(h.fileStorage.storePrivateFile).not.toHaveBeenCalled();
   });
 
   it('does not process or upload when the owner-scoped item does not exist', async () => {

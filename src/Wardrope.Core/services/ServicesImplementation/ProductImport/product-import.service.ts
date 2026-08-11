@@ -109,7 +109,11 @@ const CATEGORY_RULES: ReadonlyArray<{
 ];
 
 function normalizeText(value: string): string {
-  return value.trim().replace(/\s+/g, ' ');
+  return value
+    .replace(/&nbsp;|&#160;|&#xa0;/gi, ' ')
+    .replace(/\u00a0/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
 }
 
 function normalizeList(
@@ -221,12 +225,15 @@ export class ProductImportService implements IProductImportService {
         brand: snapshot.brand
           ? normalizeText(snapshot.brand).slice(0, 80)
           : null,
+        ...(snapshot.description
+          ? { description: normalizeText(snapshot.description).slice(0, 2_000) }
+          : {}),
         colors: normalizeList(snapshot.colors, 5, 40),
         materials: normalizeList(snapshot.materials, 8, 60),
         suggestedCategory: inferCategory(snapshot),
         suggestedSubcategory: inferSubcategory(snapshot),
         imageAvailable: snapshot.imageUrls.length > 0,
-        imageUrls: snapshot.imageUrls,
+        imageUrls: snapshot.imageUrls.slice(0, 10),
       };
 
       if (!preview.name && !preview.brand && !preview.suggestedCategory) {
@@ -259,7 +266,11 @@ export class ProductImportService implements IProductImportService {
 
     let downloaded;
     try {
-      const selectedUrls = imageUrls?.length ? Array.from(new Set(imageUrls)) : [undefined];
+      const availableSlots = Math.max(0, 10 - item.images.length);
+      if (availableSlots === 0) return { ok: false, reason: 'INVALID_IMAGE' };
+      const selectedUrls = imageUrls?.length
+        ? Array.from(new Set(imageUrls)).slice(0, availableSlots)
+        : [undefined];
       downloaded = await Promise.all(selectedUrls.map((imageUrl) => imageUrl
         ? this.productSourceService.downloadPrimaryImage(item.sourceUrl!, imageUrl)
         : this.productSourceService.downloadPrimaryImage(item.sourceUrl!),
@@ -283,8 +294,8 @@ export class ProductImportService implements IProductImportService {
       return { ok: false, reason: 'SOURCE_UNAVAILABLE' };
     }
 
-    const result = this.wardrobeImageService.replaceMany
-      ? await this.wardrobeImageService.replaceMany(userId, itemId, downloaded)
+    const result = this.wardrobeImageService.appendMany
+      ? await this.wardrobeImageService.appendMany(userId, itemId, downloaded)
       : downloaded.length === 1
         ? await this.wardrobeImageService.replace(userId, itemId, downloaded[0]!)
         : { ok: false as const, reason: 'STORAGE_UNAVAILABLE' as const };

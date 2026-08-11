@@ -26,6 +26,7 @@ export interface ProductSourceSnapshot {
   sourceUrl: string;
   name: string | null;
   brand: string | null;
+  description?: string | null | undefined;
   colors: string[];
   materials: string[];
   categoryHint: string | null;

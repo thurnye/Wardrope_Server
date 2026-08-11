@@ -39,7 +39,7 @@ export interface DressMeLocationInput {
 }
 
 export interface DressMeRequestDto {
-  occasion: DressMeOccasion;
+  occasion?: DressMeOccasion | undefined;
   dressCode?: DressMeDressCode | null | undefined;
   forAt?: string | undefined;
   location?: DressMeLocationInput | undefined;
@@ -100,7 +100,10 @@ export interface DressMeResponseDto {
 }
 
 export interface DressMeProviderContext {
-  request: Required<Pick<DressMeRequestDto, 'occasion' | 'includeFragrance' | 'recommendationCount'>> & {
+  request: {
+    occasion: DressMeOccasion;
+    includeFragrance: boolean;
+    recommendationCount: number;
     dressCode: DressMeDressCode | null;
     forAt: string;
     additionalContext?: string | null | undefined;
